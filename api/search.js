@@ -1,12 +1,11 @@
 export default async function handler(req, res) {
-  const query = String(req.query.query || "").trim();
+  const query = String(req.query.query || req.query.q || "").trim();
 
   if (!query) {
     return res.status(400).json({ error: "Please provide a search query." });
   }
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-
   if (!apiKey) {
     return res.status(500).json({ error: "Google Places API key is not configured." });
   }
@@ -19,20 +18,13 @@ export default async function handler(req, res) {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location"
       },
-      body: JSON.stringify({
-        textQuery: query,
-        pageSize: 10,
-        languageCode: "en"
-      })
+      body: JSON.stringify({ textQuery: query, pageSize: 10, languageCode: "en" })
     });
 
     const data = await response.json();
-
     if (!response.ok) {
-      console.error("Google Places error:", data);
-      return res.status(response.status).json({
-        error: data.error?.message || "Google Places search failed."
-      });
+      console.error("Google Places error:", response.status, data);
+      return res.status(response.status).json({ error: data.error?.message || "Google Places search failed." });
     }
 
     const places = (data.places || []).map((place) => ({
@@ -48,7 +40,7 @@ export default async function handler(req, res) {
       longitude: place.location?.longitude ?? null
     }));
 
-    return res.status(200).json({ places });
+    return res.status(200).json({ places, count: places.length });
   } catch (error) {
     console.error("Google Places search error:", error);
     return res.status(500).json({ error: "Something went wrong while searching for places." });
