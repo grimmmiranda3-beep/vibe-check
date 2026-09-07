@@ -1,5 +1,7 @@
 export default async function handler(req, res) {
-  const query = req.query.query;
+  const query = String(req.query.query || "").trim();
+  const near = String(req.query.near || "").trim();
+  const ll = String(req.query.ll || "").trim();
 
   if (!query) {
     return res.status(400).json({
@@ -7,29 +9,38 @@ export default async function handler(req, res) {
     });
   }
 
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const apiKey = process.env.FOURSQUARE_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({
-      error: "Google Places API key is not configured."
+      error: "Foursquare API key is not configured."
     });
   }
 
   try {
+    const params = new URLSearchParams({
+      query,
+      limit: "10",
+      sort: "RELEVANCE",
+      fields: "fsq_id,name,location,categories,rating,distance,website,link"
+    });
+
+    if (ll) {
+      params.set("ll", ll);
+      params.set("radius", "10000");
+    } else if (near) {
+      params.set("near", near);
+    }
+
     const response = await fetch(
-      "https://places.googleapis.com/v1/places:searchText",
+      `https://places-api.foursquare.com/places/search?${params.toString()}`,
       {
-        method: "POST",
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": apiKey,
-          "X-Goog-FieldMask":
-            "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.primaryType,places.googleMapsUri"
-        },
-        body: JSON.stringify({
-          textQuery: query,
-          pageSize: 10
-        })
+          Accept: "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "X-Places-Api-Version": "2025-06-17"
+        }
       }
     );
 
@@ -37,24 +48,28 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: data.error?.message || "Places search failed."
+        error: data.message || "Foursquare search failed."
       });
     }
 
-    const places = (data.places || []).map((place) => ({
-      id: place.id,
-      name: place.displayName?.text || "Unknown place",
-      address: place.formattedAddress || "",
+    const places = (data.results || []).map((place) => ({
+      id: place.fsq_id,
+      name: place.name || "Unknown place",
+      address:
+        place.location?.formatted_address ||
+        place.location?.address ||
+        "",
       rating: place.rating || null,
-      reviewCount: place.userRatingCount || 0,
-      type: place.primaryType || "Place",
-      mapsUrl: place.googleMapsUri || ""
+      distance: place.distance || null,
+      type: place.categories?.[0]?.name || "Place",
+      website: place.website || "",
+      url: place.link || ""
     }));
 
     return res.status(200).json({ places });
 
   } catch (error) {
-    console.error(error);
+    console.error("Foursquare search error:", error);
 
     return res.status(500).json({
       error: "Something went wrong while searching for places."
