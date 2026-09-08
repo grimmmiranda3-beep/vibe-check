@@ -32,8 +32,7 @@ function isCityOrZipQuery(q) {
   return /^\d{5}(?:-\d{4})?$/.test(s) || /^[A-Za-z][A-Za-z .'-]+(?:,\s*[A-Za-z]{2})?$/.test(s);
 }
 
-// Detect clear category intent so a search such as "restaurants" does not
-// return unrelated place types simply because Google considers them relevant.
+// Detect clear category intent so category searches stay category-only.
 function getSearchType(q) {
   const s = q.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   if (/\b(restaurants?|dining|places to eat|food spots?)\b/.test(s)) return "restaurant";
@@ -70,6 +69,12 @@ export default async function handler(req, res) {
   const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
   const queries = [...new Set([rawQuery, normalized, locationNormalized, normalized.replace(/\s*,\s*/g, " in ")])];
   const searchType = getSearchType(rawQuery);
+
+  // Category intent must take precedence over the broad city/ZIP detector.
+  // Otherwise a query such as "restaurants" matches the old city regex and
+  // incorrectly triggers the mixed city-discovery search (which includes parks,
+  // coffee shops, bars, etc.).
+  const cityDiscovery = !searchType && isCityOrZipQuery(rawQuery);
 
   async function searchGoogle(textQuery, pageSize = 10, includedType = null) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
@@ -111,7 +116,7 @@ export default async function handler(req, res) {
     let googlePlaces = [];
     let lastError = null;
 
-    if (isCityOrZipQuery(rawQuery)) {
+    if (cityDiscovery) {
       const categoryQueries = [
         `popular restaurants in ${normalized}`,
         `coffee shops in ${normalized}`,
@@ -140,9 +145,6 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: lastError.message });
     }
 
-    // Resolve the first Google Place photo to a browser-ready URI before
-    // returning the search response. This keeps the frontend independent of
-    // Google's photo-name/redirect mechanics.
     const places = await Promise.all(googlePlaces.map(async (place) => {
       const firstPhoto = place.photos?.[0];
       const openingHours = place.currentOpeningHours || {};
@@ -171,7 +173,7 @@ export default async function handler(req, res) {
       if (rankDiff !== 0) return rankDiff;
       return (Number(b.rating) || 0) - (Number(a.rating) || 0);
     });
-    return res.status(200).json({ places, count: places.length, cityDiscovery: isCityOrZipQuery(rawQuery) });
+    return res.status(200).json({ places, count: places.length, cityDiscovery });
   } catch (error) {
     console.error("Google Places search error:", error);
     return res.status(500).json({ error: "Something went wrong while searching for places." });
