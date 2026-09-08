@@ -27,6 +27,11 @@ async function rateLimit(req) {
   return count <= 30;
 }
 
+function isCityOrZipQuery(q) {
+  const s = q.trim();
+  return /^\d{5}(?:-\d{4})?$/.test(s) || /^[A-Za-z][A-Za-z .'-]+(?:,\s*[A-Za-z]{2})?$/.test(s);
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("CDN-Cache-Control", "no-store");
@@ -41,7 +46,7 @@ export default async function handler(req, res) {
   }
 
   const rawQuery = String(req.query.query || req.query.q || "").trim();
-  if (!rawQuery) return res.status(400).json({ error: "Please provide a search query." });
+  if (!rawQuery) return res.status(400).json({ error: "Please provide a city, ZIP code, or place search." });
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Google Places API key is not configured." });
@@ -50,7 +55,7 @@ export default async function handler(req, res) {
   const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
   const queries = [...new Set([rawQuery, normalized, locationNormalized, normalized.replace(/\s*,\s*/g, " in ")])];
 
-  async function searchGoogle(textQuery) {
+  async function searchGoogle(textQuery, pageSize = 10) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
@@ -58,7 +63,7 @@ export default async function handler(req, res) {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos,places.currentOpeningHours"
       },
-      body: JSON.stringify({ textQuery, pageSize: 10, languageCode: "en", regionCode: "US" })
+      body: JSON.stringify({ textQuery, pageSize, languageCode: "en", regionCode: "US" })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || "Google Places search failed.");
@@ -68,12 +73,31 @@ export default async function handler(req, res) {
   try {
     let googlePlaces = [];
     let lastError = null;
-    for (const query of queries) {
-      try {
-        googlePlaces = await searchGoogle(query);
-        if (googlePlaces.length) break;
-      } catch (error) { lastError = error; }
+
+    if (isCityOrZipQuery(rawQuery)) {
+      const categoryQueries = [
+        `popular restaurants in ${normalized}`,
+        `coffee shops in ${normalized}`,
+        `bars and nightlife in ${normalized}`,
+        `parks and recreation in ${normalized}`,
+        `things to do and entertainment in ${normalized}`
+      ];
+      const results = await Promise.all(categoryQueries.map(q => searchGoogle(q, 6).catch(error => { lastError = error; return []; })));
+      const seen = new Set();
+      googlePlaces = results.flat().filter(place => {
+        if (!place?.id || seen.has(place.id)) return false;
+        seen.add(place.id);
+        return true;
+      }).slice(0, 24);
+    } else {
+      for (const query of queries) {
+        try {
+          googlePlaces = await searchGoogle(query, 10);
+          if (googlePlaces.length) break;
+        } catch (error) { lastError = error; }
+      }
     }
+
     if (!googlePlaces.length && lastError) {
       console.error("Google Places error:", lastError);
       return res.status(502).json({ error: lastError.message });
@@ -106,7 +130,7 @@ export default async function handler(req, res) {
       if (rankDiff !== 0) return rankDiff;
       return (Number(b.rating) || 0) - (Number(a.rating) || 0);
     });
-    return res.status(200).json({ places, count: places.length });
+    return res.status(200).json({ places, count: places.length, cityDiscovery: isCityOrZipQuery(rawQuery) });
   } catch (error) {
     console.error("Google Places search error:", error);
     return res.status(500).json({ error: "Something went wrong while searching for places." });
