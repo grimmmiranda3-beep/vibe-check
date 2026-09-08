@@ -19,15 +19,59 @@
 </div>
 <script>
 let places=[];let visiblePlaces=[];let currentFilter="All";let selectedEmoji="😍";const $=id=>document.getElementById(id);
-function vibeFor(type){const t=(type||"").toLowerCase();if(t.includes("bar")||t.includes("nightclub")||t.includes("club"))return ["🔥",9.4,["Party","Music","Trending"]];if(t.includes("coffee")||t.includes("cafe"))return ["😊",8.7,["Chill","Work"]];if(t.includes("restaurant"))return ["😍",8.9,["Date Night","Chill"]];return ["✨",8.3,["Chill"]]}
+
+// Give each real Google Place a useful set of vibe categories.
+// Categories are intentionally broad so every search can be explored through the filters.
+function vibeFor(type,name,rating=0){
+  const t=(type||"").toLowerCase();
+  const n=(name||"").toLowerCase();
+  const tags=new Set();
+  let emoji="✨";
+  let score=8.3;
+
+  const isBar=t.includes("bar")||t.includes("nightclub")||t.includes("club")||n.includes("brew")||n.includes("tap house");
+  const isCoffee=t.includes("coffee")||t.includes("cafe")||t.includes("cafeteria")||n.includes("coffee")||n.includes("cafe");
+  const isRestaurant=t.includes("restaurant")||t.includes("food")||t.includes("dining")||t.includes("italian")||t.includes("mexican")||t.includes("japanese")||t.includes("american");
+  const isBakery=t.includes("bakery")||t.includes("dessert")||t.includes("confection");
+  const isPark=t.includes("park")||t.includes("playground")||t.includes("recreation");
+  const isMusic=t.includes("music")||t.includes("concert")||t.includes("live")||n.includes("music")||n.includes("jazz");
+
+  if(isBar){emoji="🔥";score=9.4;tags.add("Party");tags.add("Music");tags.add("Date Night");}
+  if(isCoffee){emoji="😊";score=8.7;tags.add("Chill");tags.add("Work");tags.add("Family");}
+  if(isRestaurant){emoji="😍";score=8.9;tags.add("Date Night");tags.add("Chill");tags.add("Family");}
+  if(isBakery){emoji="🥰";score=8.8;tags.add("Chill");tags.add("Family");tags.add("Date Night");}
+  if(isPark){emoji="😌";score=8.6;tags.add("Family");tags.add("Chill");}
+  if(isMusic){emoji="🎵";score=Math.max(score,9.0);tags.add("Music");tags.add("Party");}
+
+  // Useful name-based signals for places whose Google type is generic.
+  if(/wine|winery|cocktail|lounge|pub|brewery/.test(n)){tags.add("Date Night");tags.add("Party");}
+  if(/family|kids|child|play|park/.test(n)){tags.add("Family");}
+  if(/studio|cowork|workspace|library|roast/.test(n)){tags.add("Work");tags.add("Chill");}
+  if(/pizza|taco|burger|bbq|steak|sushi/.test(n)){tags.add("Date Night");tags.add("Family");}
+
+  // Fallback for generic place types.
+  if(tags.size===0){tags.add("Chill");tags.add("Family");}
+
+  // Small rating lift keeps scores tied to actual Google reputation without pretending it is a live review score.
+  if(Number(rating)>=4.5)score=Math.min(9.7,score+0.2);
+  else if(Number(rating)>=4.0)score=Math.min(9.6,score+0.1);
+
+  return [emoji,Number(score.toFixed(1)),Array.from(tags)];
+}
+
 function escapeHtml(s){return String(s??"").replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function render(){
-visiblePlaces=currentFilter==="All"?[...places]:places.filter(p=>Array.isArray(p.tags)&&p.tags.includes(currentFilter));
-$("resultCount").textContent=`${visiblePlaces.length} ${visiblePlaces.length===1?'place':'places'}`;
-if(!visiblePlaces.length){$("places").innerHTML=`<div class="empty">No places match that vibe yet.</div>`}else{$("places").innerHTML=visiblePlaces.map((p,i)=>`<div class="place" onclick="openPlace(${i})"><div class="place-top"><div><span class="live">● live vibe</span><h3>${escapeHtml(p.name)}</h3><div class="meta">${escapeHtml(p.type)} • ${escapeHtml(p.address)}</div></div><div class="score">${p.emoji} ${p.score}</div></div><div class="tags">${(p.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join("")}<span class="tag">⭐ ${p.rating??"—"} (${p.userRatingCount||0})</span></div></div>`).join("")}
-renderPins(visiblePlaces)}
+  visiblePlaces=currentFilter==="All"?[...places]:places.filter(p=>Array.isArray(p.tags)&&p.tags.includes(currentFilter));
+  $("resultCount").textContent=`${visiblePlaces.length} ${visiblePlaces.length===1?'place':'places'}`;
+  if(!visiblePlaces.length){
+    $("places").innerHTML=`<div class="empty">No places match that vibe yet. Try <b>All</b> or another search.</div>`;
+  }else{
+    $("places").innerHTML=visiblePlaces.map((p,i)=>`<div class="place" onclick="openPlace(${i})"><div class="place-top"><div><span class="live">● live vibe</span><h3>${escapeHtml(p.name)}</h3><div class="meta">${escapeHtml(p.type)} • ${escapeHtml(p.address)}</div></div><div class="score">${p.emoji} ${p.score}</div></div><div class="tags">${(p.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join("")}<span class="tag">⭐ ${p.rating??"—"} (${p.userRatingCount||0})</span></div></div>`).join("");
+  }
+  renderPins(visiblePlaces)
+}
 function renderPins(list){const map=$("map");map.querySelectorAll(".pin").forEach(x=>x.remove());list.slice(0,4).forEach((p,i)=>{const pin=document.createElement("button");pin.className="pin "+(i===0?"hot ":"")+"p"+(i+1);pin.textContent=`${p.emoji} ${p.score}`;pin.onclick=()=>openPlace(i);map.appendChild(pin)})}
-async function doSearch(){const q=$("search").value.trim();if(!q){$("places").innerHTML="<div class='empty'>Enter something like <b>coffee shops Vacaville</b>.</div>";$("resultCount").textContent="0 places";return}const btn=$("searchBtn");btn.disabled=true;btn.textContent="Searching...";$("places").innerHTML="<div class='loading'>Finding real places near you…</div>";$("resultCount").textContent="Searching…";try{const r=await fetch(`/api/search?query=${encodeURIComponent(q)}`,{cache:"no-store"});const data=await r.json();if(!r.ok)throw new Error(data.error||"Search failed");const raw=Array.isArray(data.places)?data.places:[];places=raw.map(p=>{const [emoji,score,tags]=vibeFor(p.type);return {...p,emoji,score,tags}});currentFilter="All";document.querySelectorAll(".chip").forEach(x=>x.classList.toggle("selected",x.dataset.filter==="All"));render()}catch(e){console.error(e);places=[];visiblePlaces=[];$("resultCount").textContent="Search error";$("places").innerHTML=`<div class="error">${escapeHtml(e.message)}</div>`}finally{btn.disabled=false;btn.textContent="Search"}}
+async function doSearch(){const q=$("search").value.trim();if(!q){$("places").innerHTML="<div class='empty'>Enter something like <b>coffee shops Vacaville</b>.</div>";$("resultCount").textContent="0 places";return}const btn=$("searchBtn");btn.disabled=true;btn.textContent="Searching...";$("places").innerHTML="<div class='loading'>Finding real places near you…</div>";$("resultCount").textContent="Searching…";try{const r=await fetch(`/api/search?query=${encodeURIComponent(q)}`,{cache:"no-store"});const data=await r.json();if(!r.ok)throw new Error(data.error||"Search failed");const raw=Array.isArray(data.places)?data.places:[];places=raw.map(p=>{const [emoji,score,tags]=vibeFor(p.type,p.name,p.rating);return {...p,emoji,score,tags}});currentFilter="All";document.querySelectorAll(".chip").forEach(x=>x.classList.toggle("selected",x.dataset.filter==="All"));render()}catch(e){console.error(e);places=[];visiblePlaces=[];$("resultCount").textContent="Search error";$("places").innerHTML=`<div class="error">${escapeHtml(e.message)}</div>`}finally{btn.disabled=false;btn.textContent="Search"}}
 $("searchBtn").onclick=doSearch;$("search").addEventListener("keydown",e=>{if(e.key==="Enter")doSearch()});document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{document.querySelectorAll(".chip").forEach(x=>x.classList.remove("selected"));b.classList.add("selected");currentFilter=b.dataset.filter;render()});
 function openPlace(i){const p=visiblePlaces[i];if(!p)return;$("modalBody").innerHTML=`<div class="eyebrow">Google Places</div><h2>${escapeHtml(p.name)}</h2><div class="meta">${escapeHtml(p.type)} • ${escapeHtml(p.address)}</div><div class="bigscore">${p.emoji} ${p.score}<span style="font-size:14px;color:#777;font-weight:600"> / 10 vibe</span></div><div class="meta">Google rating: ⭐ ${p.rating??"—"} • ${p.userRatingCount||0} ratings</div>${p.url?`<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener" style="display:block;margin-top:16px;color:#7c3aed;font-weight:800">Open in Google Maps ↗</a>`:""}<div class="label">Been here? Check in and rate the vibe.</div><div class="emoji-row">${["😍","😊","😐","😕","😬"].map(e=>`<button class="emoji ${e===selectedEmoji?"selected":""}" onclick="pickEmoji(this,'${e}')">${e}</button>`).join("")}</div><button class="primary" onclick="checkIn('${escapeHtml(p.name)}')">✓ CHECK IN & SHARE VIBE</button>`;$("modal").classList.add("show")}
 function pickEmoji(el,e){document.querySelectorAll(".emoji").forEach(x=>x.classList.remove("selected"));el.classList.add("selected");selectedEmoji=e}function checkIn(name){$("modalBody").innerHTML=`<div style="text-align:center;padding:25px 5px"><div style="font-size:64px">✨</div><h2>Vibe checked!</h2><p style="color:#777">Your ${selectedEmoji} rating for <b>${escapeHtml(name)}</b> was recorded.</p><button class="primary" onclick="closeModal()">Done</button></div>`}function closeModal(){$("modal").classList.remove("show")}$("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
