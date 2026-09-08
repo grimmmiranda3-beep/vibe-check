@@ -29,6 +29,7 @@ export default async function handler(req, res) {
 
     const places = (data.places || []).map((place) => {
       const firstPhoto = place.photos?.[0];
+      const openingHours = place.currentOpeningHours || {};
       return {
         id: place.id,
         name: place.displayName?.text || "Unknown place",
@@ -40,13 +41,23 @@ export default async function handler(req, res) {
         url: place.googleMapsUri || "",
         latitude: place.location?.latitude ?? null,
         longitude: place.location?.longitude ?? null,
-        openNow: place.currentOpeningHours?.openNow ?? null,
+        openNow: openingHours.openNow ?? null,
+        weekdayDescriptions: openingHours.weekdayDescriptions || [],
         photoName: firstPhoto?.name || "",
         photoAttributions: (firstPhoto?.authorAttributions || []).map((a) => ({
           displayName: a.displayName || "Google Maps contributor",
           uri: a.uri || ""
         }))
       };
+    });
+
+    // Put places that are open right now first. Keep closed/unknown places in
+    // the results so users can still discover them, but don't lead with them.
+    places.sort((a, b) => {
+      const openRank = value => value === true ? 0 : value === null ? 1 : 2;
+      const rankDiff = openRank(a.openNow) - openRank(b.openNow);
+      if (rankDiff !== 0) return rankDiff;
+      return (Number(b.rating) || 0) - (Number(a.rating) || 0);
     });
 
     return res.status(200).json({ places, count: places.length });
