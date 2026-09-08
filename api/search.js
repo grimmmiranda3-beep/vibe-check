@@ -32,6 +32,21 @@ function isCityOrZipQuery(q) {
   return /^\d{5}(?:-\d{4})?$/.test(s) || /^[A-Za-z][A-Za-z .'-]+(?:,\s*[A-Za-z]{2})?$/.test(s);
 }
 
+// Detect clear category intent so a search such as "restaurants" does not
+// return unrelated place types simply because Google considers them relevant.
+function getSearchType(q) {
+  const s = q.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (/\b(restaurants?|dining|places to eat|food spots?)\b/.test(s)) return "restaurant";
+  if (/\b(coffee shops?|coffeehouses?|cafes?|cafés?)\b/.test(s)) return "cafe";
+  if (/\b(bars?|pubs?|nightlife|night clubs?|nightclubs?)\b/.test(s)) return "bar";
+  if (/\b(parks?|playgrounds?|nature parks?)\b/.test(s)) return "park";
+  if (/\b(gyms?|fitness centers?|fitness clubs?)\b/.test(s)) return "gym";
+  if (/\b(bakeries?)\b/.test(s)) return "bakery";
+  if (/\b(hotels?|motels?|lodging)\b/.test(s)) return "hotel";
+  if (/\b(museums?)\b/.test(s)) return "museum";
+  return null;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("CDN-Cache-Control", "no-store");
@@ -54,8 +69,9 @@ export default async function handler(req, res) {
   const normalized = rawQuery.replace(/\s*,\s*/g, ", ");
   const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
   const queries = [...new Set([rawQuery, normalized, locationNormalized, normalized.replace(/\s*,\s*/g, " in ")])];
+  const searchType = getSearchType(rawQuery);
 
-  async function searchGoogle(textQuery, pageSize = 10) {
+  async function searchGoogle(textQuery, pageSize = 10, includedType = null) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
@@ -63,7 +79,13 @@ export default async function handler(req, res) {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos,places.currentOpeningHours"
       },
-      body: JSON.stringify({ textQuery, pageSize, languageCode: "en", regionCode: "US" })
+      body: JSON.stringify({
+        textQuery,
+        pageSize,
+        languageCode: "en",
+        regionCode: "US",
+        ...(includedType ? { includedType, strictTypeFiltering: true } : {})
+      })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || "Google Places search failed.");
@@ -107,7 +129,7 @@ export default async function handler(req, res) {
     } else {
       for (const query of queries) {
         try {
-          googlePlaces = await searchGoogle(query, 10);
+          googlePlaces = await searchGoogle(query, 10, searchType);
           if (googlePlaces.length) break;
         } catch (error) { lastError = error; }
       }
