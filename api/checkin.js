@@ -1,8 +1,6 @@
 const ALLOWED = ["😍", "😊", "🔥", "😌", "🥳"];
 
 function redisConfig() {
-  // Upstash's Vercel integration can use a custom prefix (the project was
-  // connected with the STORAGE prefix), while older installs use KV_* names.
   return {
     url:
       process.env.STORAGE_URL ||
@@ -17,6 +15,12 @@ function redisConfig() {
       process.env.KV_REST_API_TOKEN ||
       process.env.UPSTASH_REDIS_REST_TOKEN
   };
+}
+
+function noStore(res) {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
 }
 
 async function redis(command) {
@@ -37,11 +41,12 @@ async function redis(command) {
 }
 
 function keyFor(placeId) {
-  // Keep the key opaque to the UI. We only store aggregate counts by place.
   return `vibe-check:place:${String(placeId).slice(0, 500)}`;
 }
 
 export default async function handler(req, res) {
+  noStore(res);
+
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -68,7 +73,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const raw = stored.result || [];
+      const raw = Array.isArray(stored.result) ? stored.result : [];
       const counts = {};
       for (let i = 0; i < raw.length; i += 2) {
         const vibe = raw[i];
