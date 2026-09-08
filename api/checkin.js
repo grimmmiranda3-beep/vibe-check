@@ -1,4 +1,5 @@
 const ALLOWED = ["😍", "😊", "🔥", "😌", "🥳"];
+const CHECKIN_WINDOW_SECONDS = 3 * 60 * 60;
 
 function redisConfig() {
   return {
@@ -44,6 +45,27 @@ function keyFor(placeId) {
   return `vibe-check:place:${String(placeId).slice(0, 500)}`;
 }
 
+function visitorKey(placeId, visitorId) {
+  return `vibe-check:visitor:${String(placeId).slice(0, 400)}:${String(visitorId).slice(0, 120)}`;
+}
+
+function getCookie(req, name) {
+  const raw = req.headers?.cookie || "";
+  const match = raw.split(";").map(x => x.trim()).find(x => x.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : "";
+}
+
+function makeVisitorId() {
+  return `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+}
+
+function setVisitorCookie(res, visitorId) {
+  res.setHeader(
+    "Set-Cookie",
+    `vibe_visitor=${encodeURIComponent(visitorId)}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax; Secure`
+  );
+}
+
 export default async function handler(req, res) {
   noStore(res);
 
@@ -77,8 +99,8 @@ export default async function handler(req, res) {
       const counts = {};
       for (let i = 0; i < raw.length; i += 2) {
         const vibe = raw[i];
-        const count = Number(raw[i + 1] || 0);
-        if (ALLOWED.includes(vibe)) counts[vibe] = count;
+        const count = Math.max(0, Number(raw[i + 1] || 0));
+        if (ALLOWED.includes(vibe) && count > 0) counts[vibe] = count;
       }
 
       const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
@@ -90,19 +112,47 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "A valid vibe is required." });
     }
 
-    const stored = await redis(["HINCRBY", key, vibe, 1]);
-    if (!stored) {
-      return res.status(503).json({
-        error: "Community storage is not connected yet."
+    let visitorId = getCookie(req, "vibe_visitor");
+    if (!visitorId) {
+      visitorId = makeVisitorId();
+      setVisitorCookie(res, visitorId);
+    }
+
+    const visitorStateKey = visitorKey(placeId, visitorId);
+    const previous = await redis(["GET", visitorStateKey]);
+    const previousVibe = previous?.result && ALLOWED.includes(previous.result)
+      ? previous.result
+      : null;
+
+    if (previousVibe === vibe) {
+      const current = await redis(["HGET", key, vibe]);
+      return res.status(200).json({
+        ok: true,
+        alreadyCheckedIn: true,
+        placeId,
+        vibe,
+        count: Number(current?.result || 0),
+        recordedAt: new Date().toISOString(),
+        message: "You already checked in with this vibe."
       });
     }
 
+    if (previousVibe && previousVibe !== vibe) {
+      await redis(["HINCRBY", key, previousVibe, -1]);
+    }
+
+    const stored = await redis(["HINCRBY", key, vibe, 1]);
+    await redis(["SET", visitorStateKey, vibe, "EX", CHECKIN_WINDOW_SECONDS]);
+
     return res.status(200).json({
       ok: true,
+      alreadyCheckedIn: false,
+      updatedVibe: Boolean(previousVibe),
       placeId,
       vibe,
-      count: Number(stored.result || 0),
-      recordedAt: new Date().toISOString()
+      count: Number(stored?.result || 0),
+      recordedAt: new Date().toISOString(),
+      cooldownMinutes: Math.round(CHECKIN_WINDOW_SECONDS / 60)
     });
   } catch (error) {
     console.error("Vibe check-in error:", error);
