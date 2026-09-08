@@ -41,12 +41,20 @@ async function redis(command) {
   return response.json();
 }
 
-function keyFor(placeId) {
-  return `vibe-check:place:${String(placeId).slice(0, 500)}`;
+function baseKey(placeId) {
+  return `vibe-check:active:${String(placeId).slice(0, 500)}`;
 }
 
-function visitorKey(placeId, visitorId) {
-  return `vibe-check:visitor:${String(placeId).slice(0, 400)}:${String(visitorId).slice(0, 120)}`;
+function visitorStateKey(placeId, visitorId) {
+  return `${baseKey(placeId)}:visitor:${String(visitorId).slice(0, 120)}`;
+}
+
+function activeIndexKey(placeId) {
+  return `${baseKey(placeId)}:index`;
+}
+
+function activeVibeKey(placeId) {
+  return `${baseKey(placeId)}:vibes`;
 }
 
 function getCookie(req, name) {
@@ -66,6 +74,58 @@ function setVisitorCookie(res, visitorId) {
   );
 }
 
+function countsFromEntries(entries) {
+  const counts = {};
+  for (const vibe of entries) {
+    if (ALLOWED.includes(vibe)) counts[vibe] = (counts[vibe] || 0) + 1;
+  }
+  return counts;
+}
+
+async function cleanup(placeId) {
+  const indexKey = activeIndexKey(placeId);
+  const vibeKey = activeVibeKey(placeId);
+  const now = Math.floor(Date.now() / 1000);
+
+  const expired = await redis(["ZRANGEBYSCORE", indexKey, "-inf", now]);
+  const visitors = Array.isArray(expired?.result) ? expired.result : [];
+
+  for (const visitorId of visitors) {
+    await redis(["HDEL", vibeKey, visitorId]);
+    await redis(["DEL", visitorStateKey(placeId, visitorId)]);
+  }
+
+  if (visitors.length) {
+    await redis(["ZREM", indexKey, ...visitors]);
+  }
+
+  return { indexKey, vibeKey };
+}
+
+async function getLive(placeId) {
+  const { indexKey, vibeKey } = await cleanup(placeId);
+  const active = await redis(["ZRANGE", indexKey, 0, -1]);
+  const visitors = Array.isArray(active?.result) ? active.result : [];
+
+  const vibes = [];
+  for (const visitorId of visitors) {
+    const row = await redis(["HGET", vibeKey, visitorId]);
+    if (row?.result && ALLOWED.includes(row.result)) vibes.push(row.result);
+  }
+
+  const counts = countsFromEntries(vibes);
+  const total = vibes.length;
+  const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+  return {
+    available: true,
+    counts,
+    total,
+    dominant,
+    windowMinutes: Math.round(CHECKIN_WINDOW_SECONDS / 60)
+  };
+}
+
 export default async function handler(req, res) {
   noStore(res);
 
@@ -82,29 +142,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "A valid placeId is required." });
     }
 
-    const key = keyFor(placeId);
-
     if (req.method === "GET") {
-      const stored = await redis(["HGETALL", key]);
-      if (!stored) {
-        return res.status(200).json({
-          available: false,
-          counts: {},
-          total: 0,
-          message: "Community storage is not connected yet."
-        });
-      }
-
-      const raw = Array.isArray(stored.result) ? stored.result : [];
-      const counts = {};
-      for (let i = 0; i < raw.length; i += 2) {
-        const vibe = raw[i];
-        const count = Math.max(0, Number(raw[i + 1] || 0));
-        if (ALLOWED.includes(vibe) && count > 0) counts[vibe] = count;
-      }
-
-      const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
-      return res.status(200).json({ available: true, counts, total });
+      return res.status(200).json(await getLive(placeId));
     }
 
     const { vibe } = req.body || {};
@@ -118,31 +157,34 @@ export default async function handler(req, res) {
       setVisitorCookie(res, visitorId);
     }
 
-    const visitorStateKey = visitorKey(placeId, visitorId);
-    const previous = await redis(["GET", visitorStateKey]);
+    const { indexKey, vibeKey } = await cleanup(placeId);
+    const visitorKey = visitorStateKey(placeId, visitorId);
+    const previous = await redis(["HGET", vibeKey, visitorId]);
     const previousVibe = previous?.result && ALLOWED.includes(previous.result)
       ? previous.result
       : null;
 
     if (previousVibe === vibe) {
-      const current = await redis(["HGET", key, vibe]);
+      const live = await getLive(placeId);
       return res.status(200).json({
         ok: true,
         alreadyCheckedIn: true,
         placeId,
         vibe,
-        count: Number(current?.result || 0),
-        recordedAt: new Date().toISOString(),
-        message: "You already checked in with this vibe."
+        ...live
       });
     }
 
     if (previousVibe && previousVibe !== vibe) {
-      await redis(["HINCRBY", key, previousVibe, -1]);
+      await redis(["HSET", vibeKey, visitorId, vibe]);
+    } else {
+      await redis(["HSET", vibeKey, visitorId, vibe]);
+      await redis(["ZADD", indexKey, Math.floor(Date.now() / 1000) + CHECKIN_WINDOW_SECONDS, visitorId]);
     }
 
-    const stored = await redis(["HINCRBY", key, vibe, 1]);
-    await redis(["SET", visitorStateKey, vibe, "EX", CHECKIN_WINDOW_SECONDS]);
+    await redis(["SET", visitorKey, vibe, "EX", CHECKIN_WINDOW_SECONDS]);
+
+    const live = await getLive(placeId);
 
     return res.status(200).json({
       ok: true,
@@ -150,9 +192,8 @@ export default async function handler(req, res) {
       updatedVibe: Boolean(previousVibe),
       placeId,
       vibe,
-      count: Number(stored?.result || 0),
       recordedAt: new Date().toISOString(),
-      cooldownMinutes: Math.round(CHECKIN_WINDOW_SECONDS / 60)
+      ...live
     });
   } catch (error) {
     console.error("Vibe check-in error:", error);
