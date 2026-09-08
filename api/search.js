@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos"
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos,places.currentOpeningHours"
       },
       body: JSON.stringify({ textQuery: query, pageSize: 10, languageCode: "en" })
     });
@@ -40,6 +40,7 @@ export default async function handler(req, res) {
         url: place.googleMapsUri || "",
         latitude: place.location?.latitude ?? null,
         longitude: place.location?.longitude ?? null,
+        openNow: place.currentOpeningHours?.openNow ?? null,
         photoName: firstPhoto?.name || "",
         photoAttributions: (firstPhoto?.authorAttributions || []).map((a) => ({
           displayName: a.displayName || "Google Maps contributor",
