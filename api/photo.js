@@ -9,24 +9,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Follow Google's photo redirect on the server instead of sending the
-    // browser directly to the Google media URL. This makes the image more
-    // reliable across browsers and keeps the Places API key out of the page.
-    const url = `https://places.googleapis.com/v1/${name}/media?maxWidthPx=900&maxHeightPx=650&key=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(url);
+    // Ask Google for the short-lived photoUri instead of proxying the image
+    // bytes through Vercel. Google documents photoUri as the URI intended for
+    // rendering the Place Photo in an application.
+    const url = `https://places.googleapis.com/v1/${name}/media?maxWidthPx=900&maxHeightPx=650&skipHttpRedirect=true&key=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
 
-    if (!response.ok) {
-      const text = await response.text();
-      console.error("Google Place Photo error:", response.status, text);
-      return res.status(response.status).json({ error: "Unable to load this place photo." });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.photoUri) {
+      console.error("Google Place Photo error:", response.status, data);
+      return res.status(response.ok ? 502 : response.status).json({ error: "Unable to load this place photo." });
     }
 
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    return res.status(200).send(buffer);
+    // The photoUri is short-lived, so don't cache this redirect for a long time.
+    res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300");
+    return res.redirect(302, data.photoUri);
   } catch (error) {
     console.error("Google Place Photo proxy error:", error);
     return res.status(500).json({ error: "Something went wrong while loading the place photo." });
