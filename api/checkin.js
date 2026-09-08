@@ -1,9 +1,21 @@
 const ALLOWED = ["😍", "😊", "🔥", "😌", "🥳"];
 
 function redisConfig() {
+  // Upstash's Vercel integration can use a custom prefix (the project was
+  // connected with the STORAGE prefix), while older installs use KV_* names.
   return {
-    url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+    url:
+      process.env.STORAGE_URL ||
+      process.env.STORAGE_KV_REST_API_URL ||
+      process.env.STORAGE_REST_API_URL ||
+      process.env.KV_REST_API_URL ||
+      process.env.UPSTASH_REDIS_REST_URL,
+    token:
+      process.env.STORAGE_TOKEN ||
+      process.env.STORAGE_KV_REST_API_TOKEN ||
+      process.env.STORAGE_REST_API_TOKEN ||
+      process.env.KV_REST_API_TOKEN ||
+      process.env.UPSTASH_REDIS_REST_TOKEN
   };
 }
 
