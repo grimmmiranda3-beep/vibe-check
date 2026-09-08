@@ -70,6 +70,21 @@ export default async function handler(req, res) {
     return data.places || [];
   }
 
+  async function resolvePhotoUri(photoName) {
+    if (!photoName) return "";
+    try {
+      const response = await fetch(`https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=900&maxHeightPx=650&skipHttpRedirect=true&key=${encodeURIComponent(apiKey)}`, {
+        headers: { Accept: "application/json" }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.photoUri) return data.photoUri;
+      console.error("Google photo URI error:", response.status, data);
+    } catch (error) {
+      console.error("Google photo URI request failed:", error);
+    }
+    return "";
+  }
+
   try {
     let googlePlaces = [];
     let lastError = null;
@@ -103,9 +118,13 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: lastError.message });
     }
 
-    const places = googlePlaces.map((place) => {
+    // Resolve the first Google Place photo to a browser-ready URI before
+    // returning the search response. This keeps the frontend independent of
+    // Google's photo-name/redirect mechanics.
+    const places = await Promise.all(googlePlaces.map(async (place) => {
       const firstPhoto = place.photos?.[0];
       const openingHours = place.currentOpeningHours || {};
+      const photoUri = await resolvePhotoUri(firstPhoto?.name || "");
       return {
         id: place.id,
         name: place.displayName?.text || "Unknown place",
@@ -119,10 +138,10 @@ export default async function handler(req, res) {
         longitude: place.location?.longitude ?? null,
         openNow: openingHours.openNow ?? null,
         weekdayDescriptions: openingHours.weekdayDescriptions || [],
-        photoName: firstPhoto?.name || "",
+        photoName: photoUri,
         photoAttributions: (firstPhoto?.authorAttributions || []).map((a) => ({ displayName: a.displayName || "Google Maps contributor", uri: a.uri || "" }))
       };
-    });
+    }));
 
     places.sort((a, b) => {
       const openRank = value => value === true ? 0 : value === null ? 1 : 2;
