@@ -27,7 +27,131 @@ async function searchPlaces(){const q=$('search').value.trim();if(!q)return;$('s
 async function loadReviewSummary(p){const box=$('reviewContent');if(!box)return;box.innerHTML='<div class="summary-loading">Loading the latest review summary…</div>';try{const r=await fetch(`/api/review-summary?placeId=${encodeURIComponent(p.id)}&_=${Date.now()}`,{cache:'no-store'});const data=await r.json();if(!r.ok)throw new Error();box.innerHTML=data.available?`<div class="review-text">${escapeHtml(data.summary)}</div><div class="review-meta">${escapeHtml(data.disclosureText||'Summarized from Google reviews.')}</div><div class="review-links"><a href="${safeUrl(data.reviewsUri||p.url)}" target="_blank" rel="noopener">See reviews on Google Maps</a></div>`:'<div class="summary-empty">Google does not have a review summary available for this place yet.</div>'}catch{box.innerHTML='<div class="summary-empty">Review summary is unavailable right now.</div>'}}
 function renderCommunity(data){const counts=data?.counts||{};const total=Number(data?.total||0);$('communityContent').innerHTML=`<div class="community-counts">${VIBES.map(v=>`<span class="community-count">${v} ${Number(counts[v]||0)}</span>`).join('')}</div><div class="review-meta">${total} check-in${total===1?'':'s'} · People checking in anonymously</div>`}
 async function loadCommunity(p){$('communityContent').innerHTML='<div class="summary-loading">Loading live community activity…</div>';try{const r=await fetch(`/api/checkin?placeId=${encodeURIComponent(p.id)}&_=${Date.now()}`,{cache:'no-store'});const data=await r.json();renderCommunity(data)}catch{renderCommunity({counts:{},total:0})}}
-async function openModal(i){const p=visiblePlaces[i];if(!p)return;currentPlace=p;selectedEmoji='😍';const photo=photoUrl(p),b=scoreBreakdown(p);$('modalBody').innerHTML=`<div class="eyebrow">Live vibe</div><h2>${escapeHtml(p.name)}</h2><div class="meta">${escapeHtml(p.address)}</div>${photo?`<img class="modal-photo" src="${photo}" alt="${escapeHtml(p.name)}">`:''}<div class="bigscore">${p.emoji} ${p.score}<span style="font-size:15px;color:#77727b;font-weight:700"> / 10</span></div>${p.openNow===true?'<span class="status">● Open now</span>':''}<div class="scorebox"><h3>Why this score?</h3><div class="score-row"><span>Google rating</span><div class="track"><div class="fill" style="width:${b.ratingPart}%"></div></div><b>${p.rating??'—'}</b></div><div class="score-row"><span>Review volume</span><div class="track"><div class="fill" style="width:${b.reviewPart}%"></div></div><b>${p.userRatingCount??0}</b></div><div class="score-row"><span>Vibe match</span><div class="track"><div class="fill" style="width:${b.vibePart}%"></div></div><b>${p.tags.length}</b></div><div class="score-row"><span>Open now</span><div class="track"><div class="fill" style="width:${b.openPart}%"></div></div><b>${p.openNow===true?'100%':'—'}</b></div><div class="explain">Vibe Check combines Google rating, review activity, vibe tags, and current open status. It is a Vibe Check score — not a Google rating.</div></div><div class="reviewbox"><h3>Review summary</h3><div id="reviewContent"></div></div><div class="community"><h3>People here right now</h3><div id="communityContent"></div></div><div class="label">What vibe are you feeling?</div><div class="emoji-row">${VIBES.map(e=>`<button type="button" class="emoji ${e===selectedEmoji?'selected':''}" data-vibe="${e}" onclick="selectEmoji(this.dataset.vibe,this)">${e}</button>`).join('')}</div><button type="button" class="primary" onclick="saveVibe()">Add my vibe</button>`;$('modal').classList.add('show');loadReviewSummary(p);loadCommunity(p)}
+async function openModal(i){
+const p=visiblePlaces[i];
+if(!p)return;
+currentPlace=p;
+selectedEmoji='😍';
+
+const photo=photoUrl(p);
+const b=scoreBreakdown(p);
+const tags=p.tags||[];
+
+const bestFor=tags.length
+  ? tags.slice(0,4).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')
+  : '<span class="tag">✨ Chill</span>';
+
+const rating=Number(p.rating||0);
+const reviewCount=Number(p.userRatingCount||0);
+
+let vibeSummary='A place worth checking out based on its current vibe signals.';
+if(rating>=4.5&&reviewCount>=100){
+  vibeSummary='Highly rated with strong review activity — a promising choice if you want a place people consistently enjoy.';
+}else if(rating>=4){
+  vibeSummary='A well-rated local spot with a solid overall experience according to Google activity.';
+}else if(p.openNow===true){
+  vibeSummary='Currently open and ready to visit. Check the vibe details below to see if it matches what you are looking for.';
+}
+
+$('modalBody').innerHTML=`
+<div class="eyebrow">Live vibe</div>
+
+<h2>${escapeHtml(p.name)}</h2>
+<div class="meta">${escapeHtml(p.type||'Place')} · ${escapeHtml(p.address)}</div>
+
+${photo?`<img class="modal-photo" src="${photo}" alt="${escapeHtml(p.name)}">`:''}
+
+<div class="bigscore">
+  ${p.emoji} ${p.score}
+  <span style="font-size:15px;color:#77727b;font-weight:700"> / 10</span>
+</div>
+
+${p.openNow===true?'<span class="status">● Open now</span>':p.openNow===false?'<span class="status closed">● Closed now</span>':''}
+
+<div class="scorebox">
+  <h3>Best for</h3>
+  <div class="tags" style="margin-top:0">${bestFor}</div>
+</div>
+
+<div class="scorebox">
+  <h3>✨ Vibe Check says</h3>
+  <div class="review-text">${vibeSummary}</div>
+</div>
+
+<div class="scorebox">
+  <h3>Why this score?</h3>
+
+  <div class="score-row">
+    <span>Google rating</span>
+    <div class="track">
+      <div class="fill" style="width:${b.ratingPart}%"></div>
+    </div>
+    <b>${p.rating??'—'}</b>
+  </div>
+
+  <div class="score-row">
+    <span>Review volume</span>
+    <div class="track">
+      <div class="fill" style="width:${b.reviewPart}%"></div>
+    </div>
+    <b>${p.userRatingCount??0}</b>
+  </div>
+
+  <div class="score-row">
+    <span>Vibe match</span>
+    <div class="track">
+      <div class="fill" style="width:${b.vibePart}%"></div>
+    </div>
+    <b>${tags.length}</b>
+  </div>
+
+  <div class="score-row">
+    <span>Open now</span>
+    <div class="track">
+      <div class="fill" style="width:${b.openPart}%"></div>
+    </div>
+    <b>${p.openNow===true?'100%':p.openNow===false?'35%':'—'}</b>
+  </div>
+
+  <div class="explain">
+    Vibe Check combines Google rating, review activity, vibe characteristics,
+    and current open status. It is a Vibe Check score — not a Google rating.
+  </div>
+</div>
+
+<div class="reviewbox">
+  <h3>Review summary</h3>
+  <div id="reviewContent"></div>
+</div>
+
+<div class="community">
+  <h3>People here right now</h3>
+  <div id="communityContent"></div>
+</div>
+
+<div class="label">What vibe are you feeling?</div>
+
+<div class="emoji-row">
+  ${VIBES.map(e=>`
+    <button
+      type="button"
+      class="emoji ${e===selectedEmoji?'selected':''}"
+      data-vibe="${e}"
+      onclick="selectEmoji(this.dataset.vibe,this)">
+      ${e}
+    </button>
+  `).join('')}
+</div>
+
+<button type="button" class="primary" onclick="saveVibe()">
+  Add my vibe
+</button>
+`;
+
+$('modal').classList.add('show');
+loadReviewSummary(p);
+loadCommunity(p);
+}
 function selectEmoji(e,el){selectedEmoji=e;document.querySelectorAll('.emoji').forEach(x=>x.classList.remove('selected'));el.classList.add('selected')}
 function closeModal(){$('modal').classList.remove('show')}
 async function saveVibe(){if(!currentPlace||!selectedEmoji)return;const vibe=selectedEmoji;try{const r=await fetch('/api/checkin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({placeId:currentPlace.id,vibe})});const data=await r.json();if(!r.ok)throw new Error(data.error||'Unable to add your vibe');await loadCommunity(currentPlace);const toast=$('toast');toast.textContent=`Your ${vibe} vibe was recorded anonymously 💜`;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2400)}catch(e){const toast=$('toast');toast.textContent=e.message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000)}}
