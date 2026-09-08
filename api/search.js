@@ -1,4 +1,10 @@
 export default async function handler(req, res) {
+  // Search results are live data. Never let the browser, Vercel CDN, or an
+  // intermediary cache an empty/old result and replay it as a 304.
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("CDN-Cache-Control", "no-store");
+  res.setHeader("Vercel-CDN-Cache-Control", "no-store");
+
   const rawQuery = String(req.query.query || req.query.q || "").trim();
 
   if (!rawQuery) {
@@ -10,14 +16,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Google Places API key is not configured." });
   }
 
-  // Google Places can be surprisingly sensitive to casual location syntax
-  // such as "coffee shops vacaville,ca". Try the original query first, then
-  // normalized variants before returning an empty result set.
+  // Normalize common city/state input such as "coffee shops vacaville,ca"
+  // so Google receives a natural-language location query.
+  const normalized = rawQuery.replace(/\s*,\s*/g, ", ");
+  const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
+
   const queries = [...new Set([
     rawQuery,
-    rawQuery.replace(/\s*,\s*/g, ", "),
-    rawQuery.replace(/\s*,\s*/g, " in "),
-    rawQuery.replace(/\s+(\w[^,]*)$/i, " in $1")
+    normalized,
+    locationNormalized,
+    normalized.replace(/\s*,\s*/g, " in ")
   ])];
 
   async function searchGoogle(textQuery) {
@@ -31,7 +39,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         textQuery,
         pageSize: 10,
-        languageCode: "en"
+        languageCode: "en",
+        regionCode: "US"
       })
     });
 
