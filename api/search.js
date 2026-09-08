@@ -16,7 +16,7 @@ export default async function handler(req, res) {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location"
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos"
       },
       body: JSON.stringify({ textQuery: query, pageSize: 10, languageCode: "en" })
     });
@@ -27,18 +27,26 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ error: data.error?.message || "Google Places search failed." });
     }
 
-    const places = (data.places || []).map((place) => ({
-      id: place.id,
-      name: place.displayName?.text || "Unknown place",
-      address: place.formattedAddress || "",
-      rating: place.rating ?? null,
-      userRatingCount: place.userRatingCount ?? 0,
-      type: place.primaryType || "Place",
-      website: place.websiteUri || "",
-      url: place.googleMapsUri || "",
-      latitude: place.location?.latitude ?? null,
-      longitude: place.location?.longitude ?? null
-    }));
+    const places = (data.places || []).map((place) => {
+      const firstPhoto = place.photos?.[0];
+      return {
+        id: place.id,
+        name: place.displayName?.text || "Unknown place",
+        address: place.formattedAddress || "",
+        rating: place.rating ?? null,
+        userRatingCount: place.userRatingCount ?? 0,
+        type: place.primaryType || "Place",
+        website: place.websiteUri || "",
+        url: place.googleMapsUri || "",
+        latitude: place.location?.latitude ?? null,
+        longitude: place.location?.longitude ?? null,
+        photoName: firstPhoto?.name || "",
+        photoAttributions: (firstPhoto?.authorAttributions || []).map((a) => ({
+          displayName: a.displayName || "Google Maps contributor",
+          uri: a.uri || ""
+        }))
+      };
+    });
 
     return res.status(200).json({ places, count: places.length });
   } catch (error) {
