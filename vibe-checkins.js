@@ -1,5 +1,6 @@
 (() => {
   const KEY = 'vibeCheck.checkins.v3';
+  const MINE_KEY = 'vibeCheck.mine.v1';
   const entries = [
     ['😍', 'Love it'],
     ['😊', 'Good'],
@@ -12,12 +13,16 @@
     try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
   };
   const write = data => localStorage.setItem(KEY, JSON.stringify(data));
+  const readMine = () => {
+    try { return JSON.parse(localStorage.getItem(MINE_KEY) || '{}'); } catch { return {}; }
+  };
+  const writeMine = data => localStorage.setItem(MINE_KEY, JSON.stringify(data));
   const placeKey = () => {
     const title = document.querySelector('#modalBody h2')?.textContent?.trim() || 'Unknown place';
     const address = document.querySelector('#modalBody .meta')?.textContent?.trim() || '';
     return `${title}|${address}`;
   };
-  const total = counts => Object.values(counts || {}).reduce((a, b) => a + Number(b || 0), 0);
+  const total = counts => entries.reduce((sum, [emoji]) => sum + Number(counts?.[emoji] || 0), 0);
 
   const render = (community = null, message = '') => {
     const key = placeKey();
@@ -85,27 +90,73 @@
   const save = async () => {
     const key = placeKey();
     const vibe = window.selectedEmoji || '😍';
-    const data = read();
-    data[key] = data[key] || {};
-    data[key][vibe] = Number(data[key][vibe] || 0) + 1;
-    write(data);
+    const mine = readMine();
 
-    render(null, 'Saving your anonymous vibe check-in…');
+    if (mine[key] === vibe) {
+      const toast = document.querySelector('#toast');
+      if (toast) {
+        toast.textContent = 'You already added this vibe 💜';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+      return;
+    }
+
+    const button = document.querySelector('#modalBody .primary');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Adding your vibe…';
+    }
 
     try {
       const result = await postCheckin(key, vibe);
-      const community = await getCommunity(key);
-      render(community || { available: true, counts: { [vibe]: Number(result.count || 1) }, total: Number(result.count || 1) }, 'Your vibe was recorded anonymously. 💜');
-    } catch (error) {
-      render(null, 'Saved on this device. Community totals will appear once server storage is connected.');
-      console.error('Vibe Check check-in API error:', error);
-    }
+      mine[key] = vibe;
+      writeMine(mine);
 
-    const toast = document.querySelector('#toast');
-    if (toast) {
-      toast.textContent = 'Your vibe was added 💜';
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2200);
+      const community = await getCommunity(key);
+      render(
+        community || { available: true, counts: {}, total: 0 },
+        result.alreadyCheckedIn
+          ? 'You already checked in with this vibe.'
+          : result.updatedVibe
+          ? 'Your vibe was updated anonymously. 💜'
+          : 'Your vibe was recorded anonymously. 💜'
+      );
+
+      const toast = document.querySelector('#toast');
+      if (toast) {
+        toast.textContent = result.alreadyCheckedIn ? 'Already checked in 💜' : 'Your vibe was added 💜';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+    } catch (error) {
+      console.error('Vibe Check check-in API error:', error);
+
+      const data = read();
+      data[key] = data[key] || {};
+      const previousLocalVibe = mine[key];
+
+      if (previousLocalVibe && previousLocalVibe !== vibe) {
+        data[key][previousLocalVibe] = Math.max(0, Number(data[key][previousLocalVibe] || 0) - 1);
+      }
+
+      data[key][vibe] = Number(data[key][vibe] || 0) + 1;
+      mine[key] = vibe;
+      write(data);
+      writeMine(mine);
+      render(null, 'Saved on this device. Community totals will appear once server storage is available.');
+
+      const toast = document.querySelector('#toast');
+      if (toast) {
+        toast.textContent = 'Saved on this device 💜';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Add my vibe';
+      }
     }
   };
 
