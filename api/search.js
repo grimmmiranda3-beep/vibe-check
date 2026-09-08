@@ -1,32 +1,54 @@
+function redisConfig() {
+  return {
+    url: process.env.STORAGE_URL || process.env.STORAGE_KV_REST_API_URL || process.env.STORAGE_REST_API_URL || process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.STORAGE_TOKEN || process.env.STORAGE_KV_REST_API_TOKEN || process.env.STORAGE_REST_API_TOKEN || process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+  };
+}
+
+async function redis(command) {
+  const { url, token } = redisConfig();
+  if (!url || !token) return null;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(command)
+  });
+  if (!response.ok) throw new Error(`Storage request failed (${response.status})`);
+  return response.json();
+}
+
+async function rateLimit(req) {
+  const ip = String(req.headers["x-forwarded-for"] || req.headers["x-real-ip"] || "unknown").split(",")[0].trim().slice(0, 100);
+  const key = `vibe-check:rate:search:${ip}`;
+  const result = await redis(["INCR", key]);
+  if (!result) return true;
+  const count = Number(result.result || 0);
+  if (count === 1) await redis(["EXPIRE", key, 60]);
+  return count <= 30;
+}
+
 export default async function handler(req, res) {
-  // Search results are live data. Never let the browser, Vercel CDN, or an
-  // intermediary cache an empty/old result and replay it as a 304.
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("CDN-Cache-Control", "no-store");
   res.setHeader("Vercel-CDN-Cache-Control", "no-store");
 
-  const rawQuery = String(req.query.query || req.query.q || "").trim();
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  if (!rawQuery) {
-    return res.status(400).json({ error: "Please provide a search query." });
+  try {
+    if (!(await rateLimit(req))) return res.status(429).json({ error: "Too many searches. Please wait a minute and try again." });
+  } catch (error) {
+    console.error("Search rate-limit error:", error);
   }
+
+  const rawQuery = String(req.query.query || req.query.q || "").trim();
+  if (!rawQuery) return res.status(400).json({ error: "Please provide a search query." });
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: "Google Places API key is not configured." });
-  }
+  if (!apiKey) return res.status(500).json({ error: "Google Places API key is not configured." });
 
-  // Normalize common city/state input such as "coffee shops vacaville,ca"
-  // so Google receives a natural-language location query.
   const normalized = rawQuery.replace(/\s*,\s*/g, ", ");
   const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
-
-  const queries = [...new Set([
-    rawQuery,
-    normalized,
-    locationNormalized,
-    normalized.replace(/\s*,\s*/g, " in ")
-  ])];
+  const queries = [...new Set([rawQuery, normalized, locationNormalized, normalized.replace(/\s*,\s*/g, " in ")])];
 
   async function searchGoogle(textQuery) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
@@ -36,34 +58,22 @@ export default async function handler(req, res) {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos,places.currentOpeningHours"
       },
-      body: JSON.stringify({
-        textQuery,
-        pageSize: 10,
-        languageCode: "en",
-        regionCode: "US"
-      })
+      body: JSON.stringify({ textQuery, pageSize: 10, languageCode: "en", regionCode: "US" })
     });
-
     const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error?.message || "Google Places search failed.");
-    }
+    if (!response.ok) throw new Error(data.error?.message || "Google Places search failed.");
     return data.places || [];
   }
 
   try {
     let googlePlaces = [];
     let lastError = null;
-
     for (const query of queries) {
       try {
         googlePlaces = await searchGoogle(query);
         if (googlePlaces.length) break;
-      } catch (error) {
-        lastError = error;
-      }
+      } catch (error) { lastError = error; }
     }
-
     if (!googlePlaces.length && lastError) {
       console.error("Google Places error:", lastError);
       return res.status(502).json({ error: lastError.message });
@@ -86,10 +96,7 @@ export default async function handler(req, res) {
         openNow: openingHours.openNow ?? null,
         weekdayDescriptions: openingHours.weekdayDescriptions || [],
         photoName: firstPhoto?.name || "",
-        photoAttributions: (firstPhoto?.authorAttributions || []).map((a) => ({
-          displayName: a.displayName || "Google Maps contributor",
-          uri: a.uri || ""
-        }))
+        photoAttributions: (firstPhoto?.authorAttributions || []).map((a) => ({ displayName: a.displayName || "Google Maps contributor", uri: a.uri || "" }))
       };
     });
 
@@ -99,7 +106,6 @@ export default async function handler(req, res) {
       if (rankDiff !== 0) return rankDiff;
       return (Number(b.rating) || 0) - (Number(a.rating) || 0);
     });
-
     return res.status(200).json({ places, count: places.length });
   } catch (error) {
     console.error("Google Places search error:", error);
