@@ -9,14 +9,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Follow Google's photo redirect on the server instead of sending the
+    // browser directly to the Google media URL. This makes the image more
+    // reliable across browsers and keeps the Places API key out of the page.
     const url = `https://places.googleapis.com/v1/${name}/media?maxWidthPx=900&maxHeightPx=650&key=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(url, { redirect: "manual" });
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-      if (!location) return res.status(502).json({ error: "Photo redirect was not provided." });
-      return res.redirect(302, location);
-    }
+    const response = await fetch(url);
 
     if (!response.ok) {
       const text = await response.text();
@@ -27,7 +24,8 @@ export default async function handler(req, res) {
     const contentType = response.headers.get("content-type") || "image/jpeg";
     const buffer = Buffer.from(await response.arrayBuffer());
     res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400");
+    res.setHeader("Access-Control-Allow-Origin", "*");
     return res.status(200).send(buffer);
   } catch (error) {
     console.error("Google Place Photo proxy error:", error);
