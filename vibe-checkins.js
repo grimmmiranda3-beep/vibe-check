@@ -22,8 +22,11 @@
   const render = (community = null, message = '') => {
     const key = placeKey();
     const local = read()[key] || {};
-    const counts = community?.counts || local;
-    const sum = community?.total ?? total(counts);
+    const localTotal = total(local);
+    const hasCommunityCounts = Boolean(community?.available && Number(community.total || 0) > 0);
+    const useLocalFallback = !hasCommunityCounts && localTotal > 0;
+    const counts = useLocalFallback ? local : (community?.counts || local);
+    const sum = useLocalFallback ? localTotal : (community?.total ?? localTotal);
     let box = document.querySelector('#checkinBox');
 
     if (!box) {
@@ -37,9 +40,9 @@
     }
 
     const label = sum === 1 ? '1 check-in' : `${sum} check-ins`;
-    const source = community?.available
+    const source = hasCommunityCounts
       ? 'People checking in anonymously'
-      : 'Your check-ins on this device';
+      : 'Your check-in is saved on this device';
 
     box.innerHTML = `
       <div style="font-weight:900;font-size:17px">People here right now</div>
@@ -47,14 +50,16 @@
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
         ${entries.map(([e, l]) => `<span style="padding:8px 10px;border-radius:999px;background:#f5f1f7;font-size:12px">${e} ${Number(counts[e] || 0)} ${l}</span>`).join('')}
       </div>
-      ${community?.available && sum ? `<div style="font-size:12px;color:#77727b;margin-top:11px">Live community activity is based on anonymous Vibe Check-ins.</div>` : ''}
+      ${hasCommunityCounts ? `<div style="font-size:12px;color:#77727b;margin-top:11px">Live community activity is based on anonymous Vibe Check-ins.</div>` : ''}
       ${message ? `<div style="font-size:11px;color:#77727b;margin-top:10px">${message}</div>` : ''}
     `;
   };
 
   const getCommunity = async placeId => {
     try {
-      const response = await fetch(`/api/checkin?placeId=${encodeURIComponent(placeId)}`);
+      const response = await fetch(`/api/checkin?placeId=${encodeURIComponent(placeId)}&_=${Date.now()}`, {
+        cache: 'no-store'
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Community data unavailable.');
       return data;
@@ -68,7 +73,8 @@
     const response = await fetch('/api/checkin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ placeId, vibe })
+      body: JSON.stringify({ placeId, vibe }),
+      cache: 'no-store'
     });
     let data = {};
     try { data = await response.json(); } catch {}
