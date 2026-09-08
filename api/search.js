@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
-  const query = String(req.query.query || req.query.q || "").trim();
+  const rawQuery = String(req.query.query || req.query.q || "").trim();
 
-  if (!query) {
+  if (!rawQuery) {
     return res.status(400).json({ error: "Please provide a search query." });
   }
 
@@ -10,7 +10,17 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Google Places API key is not configured." });
   }
 
-  try {
+  // Google Places can be surprisingly sensitive to casual location syntax
+  // such as "coffee shops vacaville,ca". Try the original query first, then
+  // normalized variants before returning an empty result set.
+  const queries = [...new Set([
+    rawQuery,
+    rawQuery.replace(/\s*,\s*/g, ", "),
+    rawQuery.replace(/\s*,\s*/g, " in "),
+    rawQuery.replace(/\s+(\w[^,]*)$/i, " in $1")
+  ])];
+
+  async function searchGoogle(textQuery) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
@@ -18,16 +28,39 @@ export default async function handler(req, res) {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos,places.currentOpeningHours"
       },
-      body: JSON.stringify({ textQuery: query, pageSize: 10, languageCode: "en" })
+      body: JSON.stringify({
+        textQuery,
+        pageSize: 10,
+        languageCode: "en"
+      })
     });
 
     const data = await response.json();
     if (!response.ok) {
-      console.error("Google Places error:", response.status, data);
-      return res.status(response.status).json({ error: data.error?.message || "Google Places search failed." });
+      throw new Error(data.error?.message || "Google Places search failed.");
+    }
+    return data.places || [];
+  }
+
+  try {
+    let googlePlaces = [];
+    let lastError = null;
+
+    for (const query of queries) {
+      try {
+        googlePlaces = await searchGoogle(query);
+        if (googlePlaces.length) break;
+      } catch (error) {
+        lastError = error;
+      }
     }
 
-    const places = (data.places || []).map((place) => {
+    if (!googlePlaces.length && lastError) {
+      console.error("Google Places error:", lastError);
+      return res.status(502).json({ error: lastError.message });
+    }
+
+    const places = googlePlaces.map((place) => {
       const firstPhoto = place.photos?.[0];
       const openingHours = place.currentOpeningHours || {};
       return {
@@ -51,8 +84,6 @@ export default async function handler(req, res) {
       };
     });
 
-    // Put places that are open right now first. Keep closed/unknown places in
-    // the results so users can still discover them, but don't lead with them.
     places.sort((a, b) => {
       const openRank = value => value === true ? 0 : value === null ? 1 : 2;
       const rankDiff = openRank(a.openNow) - openRank(b.openNow);
