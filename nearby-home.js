@@ -57,9 +57,11 @@
         #${ID} .vc-privacy{padding-left:16px;padding-right:16px}
       }
       @media(max-width:520px){
-        #${ID} .vc-nearby-head{align-items:flex-start}
-        #${ID} .vc-loc{padding:9px 10px;font-size:11px}
-        #${ID} .vc-range{display:none}
+        #${ID} .vc-nearby-head{display:block;padding:16px}
+        #${ID} .vc-head-left{width:100%}
+        #${ID} .vc-loc{display:block;width:100%;min-width:0;margin-top:13px;padding:12px 14px;font-size:13px}
+        #${ID} .vc-status{padding:0 16px 12px;align-items:flex-start;flex-direction:column;gap:7px}
+        #${ID} .vc-range{display:inline-flex}
       }
     `;
     document.head.appendChild(style);
