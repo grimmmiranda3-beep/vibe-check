@@ -33,7 +33,18 @@
   #${ID} .vc-empty{padding:0 20px 18px}
   #${ID} .vc-empty-inner{background:#fff;border:1px dashed #ddd5e2;border-radius:16px;padding:14px;text-align:center;color:#77727b;font-size:11px;line-height:1.45}
   #${ID} .vc-privacy{padding:0 20px 15px;font-size:9px;color:#8a858d}
-  @media(max-width:850px){#${ID} .vc-nearby-head{align-items:flex-start;flex-direction:column}#${ID} .vc-loc{width:100%}#${ID} .vc-cards{grid-template-columns:1fr}}
+  @media(max-width:850px){
+    #${ID}{width:auto;max-width:100%;margin:0 0 18px;border-radius:20px}
+    #${ID} .vc-nearby-head{align-items:flex-start;flex-direction:column;padding:16px 16px 11px}
+    #${ID} h2{font-size:21px}
+    #${ID} .vc-copy{font-size:12px}
+    #${ID} .vc-status{padding:0 16px 11px}
+    #${ID} .vc-help{margin-left:16px;margin-right:16px}
+    #${ID} .vc-loc{width:100%;min-width:0;padding:12px 14px}
+    #${ID} .vc-cards{grid-template-columns:1fr;padding-left:16px;padding-right:16px}
+    #${ID} .vc-empty{padding-left:16px;padding-right:16px}
+    #${ID} .vc-privacy{padding-left:16px;padding-right:16px}
+  }
   `;
   document.head.appendChild(style);
 
