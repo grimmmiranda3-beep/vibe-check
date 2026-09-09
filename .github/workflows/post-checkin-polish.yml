@@ -1,0 +1,47 @@
+name: Vibe Check post-checkin polish
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    if: ${{ !contains(github.event.head_commit.message, 'post-checkin polish') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Improve post-check-in feedback
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text()
+          marker = '.post-checkin-card{'
+          if marker not in s:
+              s = s.replace('.toast{position:fixed;', '.post-checkin-card{margin:16px 0;padding:18px;border-radius:18px;background:linear-gradient(135deg,#f7f1ff,#fff0f8);border:1px solid #eadcff}.post-checkin-card h3{margin:0 0 7px;font-size:16px}.post-checkin-card p{margin:0;font-size:14px;line-height:1.5}.post-checkin-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.post-checkin-stat{background:#fff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800}.toast{position:fixed;')
+          old = "renderCommunity(data);track('checkin_submitted',{placeId:currentPlace.id,vibe,updated:Boolean(data.updatedVibe),alreadyCheckedIn:Boolean(data.alreadyCheckedIn)});const toast=$('toast');toast.textContent=data.alreadyCheckedIn?'You already added this vibe 💜':data.updatedVibe?'Your vibe was updated anonymously 💜':'Your vibe was added anonymously 💜';"
+          new = "renderCommunity(data);track('checkin_submitted',{placeId:currentPlace.id,vibe,updated:Boolean(data.updatedVibe),alreadyCheckedIn:Boolean(data.alreadyCheckedIn)});showPostCheckin(data,vibe);const toast=$('toast');toast.textContent=data.alreadyCheckedIn?'You already added this vibe 💜':data.updatedVibe?'Your vibe was updated anonymously 💜':'Your vibe was added anonymously 💜';"
+          if old in s and 'showPostCheckin(data,vibe)' not in s:
+              s = s.replace(old, new)
+          needle = "function selectEmoji(e,el){selectedEmoji=e;document.querySelectorAll('.emoji').forEach(x=>x.classList.remove('selected'));el.classList.add('selected')}"
+          addition = """function showPostCheckin(data,vibe){const host=$('communityContent');if(!host)return;const total=Number(data?.total||0),counts=data?.counts||{},community=data?.community||{};const mine=VIBE_WORDS[vibe]||'Your vibe';const pct=Number(community.dominantPercent||0);const dominant=community.dominant||vibe;const dominantLabel=VIBE_WORDS[dominant]||'Current vibe';const old=host.querySelector('.post-checkin-card');if(old)old.remove();const card=document.createElement('div');card.className='post-checkin-card';card.innerHTML=`<h3>💜 Your vibe is live</h3><p>You added <b>${escapeHtml(mine)}</b> anonymously. Your check-in now counts toward the live crowd signal.</p><div class=\"post-checkin-stats\"><span class=\"post-checkin-stat\">${vibe} ${Number(counts[vibe]||0)} feeling this</span><span class=\"post-checkin-stat\">⚡ ${total} live</span>${community.average?`<span class=\"post-checkin-stat\">${community.average}/10 community score</span>`:''}</div><p style=\"margin-top:10px\">${dominant===vibe&&pct?`You're part of the leading vibe — ${pct}% of live check-ins agree.`:`Right now, ${dominantLabel.toLowerCase()} is leading the room.`}</p>`;host.prepend(card)}\n"""
+          if 'function showPostCheckin(data,vibe)' not in s:
+              s = s.replace(needle, needle + addition)
+          p.write_text(s)
+          PY
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "feat: improve post-checkin feedback"
+          git push
