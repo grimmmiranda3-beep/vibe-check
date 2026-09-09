@@ -22,6 +22,23 @@
     document.head.appendChild(style);
   }
 
+  function captureSearchResults(){
+    if(window.__vibeCheckinFetchPatched) return;
+    const originalFetch=window.fetch.bind(window);
+    window.fetch=async function(input,init){
+      const response=await originalFetch(input,init);
+      try{
+        const url=typeof input==='string'?input:(input?.url||'');
+        if(url.includes('/api/search?')){
+          const copy=response.clone();
+          copy.json().then(data=>{if(Array.isArray(data?.places)) window.__vibePlaces=data.places}).catch(()=>{});
+        }
+      }catch{}
+      return response;
+    };
+    window.__vibeCheckinFetchPatched=true;
+  }
+
   function addButtons(){
     const cards=document.querySelectorAll('.place');
     cards.forEach((card,index)=>{
@@ -41,12 +58,18 @@
 
   function getPlaceId(card){
     const buttons=card.querySelectorAll('.place-actions button');
+    const maps=buttons[1];
+    const mapsUrl=maps?.getAttribute('onclick')||'';
+    const match=mapsUrl.match(/window\.open\('([^']+)'/);
+    const href=match?match[1]:'';
+    const places=Array.isArray(window.__vibePlaces)?window.__vibePlaces:[];
+    const found=places.find(p=>p?.url===href);
+    if(found?.id) return found.id;
     const view=buttons[0];
     const onclick=view?.getAttribute('onclick')||'';
-    const match=onclick.match(/openModal\((\d+)\)/);
-    if(!match) return null;
-    const index=Number(match[1]);
-    return Array.isArray(window.places) && window.places[index]?.id ? window.places[index].id : null;
+    const indexMatch=onclick.match(/openModal\((\d+)\)/);
+    const index=indexMatch?Number(indexMatch[1]):-1;
+    return places[index]?.id||null;
   }
 
   async function hydrateCard(card){
@@ -55,7 +78,7 @@
     if(!placeId) return;
     card.dataset.liveLoaded='1';
 
-    let host=card.querySelector('.live-signal');
+    let host=card.querySelector('.live-signal,.live-signal-empty');
     if(!host){
       host=document.createElement('div');
       host.className='live-signal-empty';
@@ -94,6 +117,7 @@
 
   function init(){
     addStyles();
+    captureSearchResults();
     addButtons();
     hydrateLiveSignals();
     const target=document.getElementById('places');
