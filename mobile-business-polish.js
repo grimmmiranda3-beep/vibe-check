@@ -4,7 +4,7 @@ function init(){
  if(document.getElementById('vibelyMobilePolish')) return;
  const style=document.createElement('style'); style.id='vibelyMobilePolish'; style.textContent=`
 @media(max-width:850px){
- body{padding-bottom:92px}
+ body{padding-bottom:96px}
  .top{height:76px;padding:0 18px;position:sticky;top:0}
  .brand{font-size:22px}
  .brand .logo{width:42px;height:42px;border-radius:14px}
@@ -27,10 +27,11 @@ function init(){
  .business .stat strong{font-size:25px}
  .business .barbox{border-radius:20px;padding:17px}
  .business .bars{height:150px;gap:8px}
- #mobileBusinessBar{position:fixed;left:14px;right:14px;bottom:82px;z-index:40;display:flex;gap:8px;padding:8px;background:rgba(255,255,255,.96);border:1px solid #e8e0ee;border-radius:22px;box-shadow:0 12px 35px rgba(35,20,50,.16);backdrop-filter:blur(12px)}
- #mobileBusinessBar button{flex:1;border:0;border-radius:15px;background:transparent;padding:11px 8px;font-weight:850;color:#5f5963}
+ #mobileBusinessBar{position:fixed;left:0;right:0;bottom:0;z-index:100;display:flex;align-items:stretch;gap:2px;padding:8px 6px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.98);border:0;border-top:1px solid #e8e0ee;border-radius:20px 20px 0 0;box-shadow:0 -8px 24px rgba(35,20,50,.12);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+ #mobileBusinessBar button{flex:1;min-width:0;border:0;border-radius:14px;background:transparent;padding:8px 3px;font-size:12px;line-height:1.15;font-weight:850;color:#5f5963;white-space:nowrap}
  #mobileBusinessBar button.active{background:#f2eaff;color:#6d28d9}
- #mobileBusinessBar .biz-icon{font-size:18px;display:block;margin-bottom:2px}
+ #mobileBusinessBar .biz-icon{font-size:20px;line-height:1;display:block;margin-bottom:4px}
+ #mobileBusinessBar #mBusiness{font-size:11px}
  #mobileBusinessCta{display:block;margin:14px 0 0;width:100%;border:0;border-radius:999px;padding:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:17px;font-weight:900;box-shadow:0 10px 22px rgba(124,58,237,.2)}
  #mobileBusinessBenefits{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px;text-align:center;color:#5d5270}
  #mobileBusinessBenefits div{font-size:11px;line-height:1.3}
