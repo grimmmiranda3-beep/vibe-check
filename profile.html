@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Profile — Vibe Check</title>
+<style>
+:root{--ink:#17151a;--muted:#77727b;--line:#ece8ee;--bg:#f8f6f9;--accent:#7c3aed;--accent2:#ec4899;--shadow:0 14px 40px rgba(25,18,35,.08)}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}button,input{font:inherit}.top{height:76px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 18px;position:sticky;top:0;z-index:10}.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:22px}.logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-size:20px}.back{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 12px;font-weight:800;cursor:pointer}.wrap{max-width:720px;margin:auto;padding:28px 18px 110px}.eyebrow{color:var(--accent);font-weight:850;letter-spacing:.08em;text-transform:uppercase;font-size:12px}.hero{margin-bottom:18px}.hero h1{font-size:38px;line-height:1.05;margin:7px 0}.hero p{color:var(--muted);line-height:1.5;margin:0}.card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow);margin:14px 0}.profile-head{display:flex;align-items:center;gap:16px}.avatar{width:72px;height:72px;border-radius:24px;background:linear-gradient(135deg,#f0e7ff,#ffe8f5);display:grid;place-items:center;font-size:32px}.profile-name{font-size:22px;font-weight:900}.profile-sub{color:var(--muted);font-size:13px;margin-top:4px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}.stat{background:#faf8fb;border:1px solid var(--line);border-radius:16px;padding:14px}.stat strong{display:block;font-size:23px}.stat span{font-size:11px;color:var(--muted)}.login{background:linear-gradient(135deg,#f7f1ff,#fff0f8);border:1px solid #eadcff}.login h2{margin:0 0 6px}.login p{color:var(--muted);font-size:14px;line-height:1.5;margin:0 0 15px}.field{width:100%;border:1px solid var(--line);border-radius:13px;padding:13px;background:#fff;outline:none}.primary,.secondary{width:100%;border:0;border-radius:13px;padding:13px;font-weight:900;cursor:pointer}.primary{margin-top:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}.secondary{margin-top:9px;background:#fff;border:1px solid var(--line)}.hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.45}.section-title{font-size:16px;font-weight:900;margin-bottom:12px}.row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}.row button{border:0;background:transparent;color:var(--accent);font-weight:850;cursor:pointer}.message{margin-top:10px;padding:11px 13px;border-radius:12px;background:#f5f1f7;color:#5d5270;font-size:13px;display:none}.message.show{display:block}.bottom{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.97);border-top:1px solid var(--line);padding:10px 18px calc(10px + env(safe-area-inset-bottom));text-align:center;backdrop-filter:blur(12px)}.bottom button{border:0;background:transparent;color:var(--accent);font-weight:900;cursor:pointer}@media(min-width:851px){.wrap{padding-top:42px}.bottom{display:none}}
+</style>
+</head>
+<body>
+<header class="top"><div class="brand"><div class="logo">✦</div>Vibe Check</div><button class="back" onclick="location.href='/'">← Explore</button></header>
+<main class="wrap">
+<section class="hero"><div class="eyebrow">Your Vibe Check</div><h1>My Profile</h1><p>Keep your Vibe Check experience personal while the community stays anonymous.</p></section>
+<section class="card" id="profileCard"><div class="profile-head"><div class="avatar" id="avatar">✦</div><div><div class="profile-name" id="displayName">Guest</div><div class="profile-sub" id="displaySub">Anonymous Vibe Checker</div></div></div><div class="stats"><div class="stat"><strong id="checkinCount">0</strong><span>Check-ins</span></div><div class="stat"><strong id="favoriteVibe">—</strong><span>Favorite vibe</span></div><div class="stat"><strong>🔒</strong><span>Privacy first</span></div></div></section>
+<section class="card login" id="loginCard"><h2>Save your profile</h2><p>Create a lightweight account so your profile can follow you across devices. You can keep using Vibe Check anonymously without signing in.</p><input class="field" id="email" type="email" autocomplete="email" placeholder="Email address"><button class="primary" id="emailBtn">Send me a sign-in link</button><button class="secondary" id="googleBtn">Continue with Google</button><div class="hint">We'll use passwordless sign-in when authentication is connected. No password is stored by Vibe Check.</div><div class="message" id="message"></div></section>
+<section class="card"><div class="section-title">Profile & privacy</div><div class="row"><span>💜 My recent check-ins</span><button onclick="location.href='/'">Explore</button></div><div class="row"><span>🔒 Anonymous community activity</span><button onclick="location.href='/privacy.html'">Privacy</button></div><div class="row"><span>⚙️ Account settings</span><button id="settingsBtn">Open</button></div><div class="row" id="signoutRow" style="display:none"><span>Sign out</span><button id="signoutBtn">Sign out</button></div></section>
+</main><div class="bottom"><button onclick="location.href='/'">📍 Back to Explore</button></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+let sb=null;
+const $=id=>document.getElementById(id);
+function message(text){$('message').textContent=text;$('message').classList.add('show')}
+async function initAuth(){
+ try{
+  const r=await fetch('/api/auth-config',{cache:'no-store'});const cfg=await r.json();
+  if(!cfg.configured){message('Account sign-in is being connected. You can keep using Vibe Check as a guest for now.');return}
+  sb=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const {data}=await sb.auth.getSession();renderSession(data.session);
+  sb.auth.onAuthStateChange((_event,session)=>renderSession(session));
+ }catch{message('Guest mode is available. Account sign-in is temporarily unavailable.')}
+}
+function renderSession(session){
+ if(!session){$('displayName').textContent='Guest';$('displaySub').textContent='Anonymous Vibe Checker';$('loginCard').style.display='block';$('signoutRow').style.display='none';return}
+ const email=session.user.email||'Vibe Checker';const name=session.user.user_metadata?.full_name||session.user.user_metadata?.name||email.split('@')[0];$('displayName').textContent=name;$('displaySub').textContent=email;$('avatar').textContent=(name[0]||'✦').toUpperCase();$('loginCard').style.display='none';$('signoutRow').style.display='flex';message('You are signed in. Your account session is saved on this device.')
+}
+$('emailBtn').onclick=async()=>{if(!sb){message('Sign-in is not connected yet. Guest mode is still available.');return}const email=$('email').value.trim();if(!email){message('Enter your email first.');return}$('emailBtn').disabled=true;try{const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+'/profile.html'}});if(error)throw error;message('Check your email for your secure Vibe Check sign-in link.')}catch(e){message(e.message||'Unable to send the sign-in link.')}finally{$('emailBtn').disabled=false}}
+$('googleBtn').onclick=async()=>{if(!sb){message('Google sign-in is not connected yet. Guest mode is still available.');return}const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+'/profile.html'}});if(error)message(error.message)};
+$('signoutBtn').onclick=async()=>{if(sb)await sb.auth.signOut();renderSession(null)};$('settingsBtn').onclick=()=>message('Account settings will include your display name, privacy choices, and connected sign-in methods.');
+initAuth();
+</script>
+</body></html>
