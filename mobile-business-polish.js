@@ -64,7 +64,7 @@ function init(){
  document.getElementById('mBusiness').onclick=business;
  document.getElementById('mExplore').onclick=explore;
  document.getElementById('mTrending').onclick=()=>{explore();setTimeout(()=>{document.getElementById('vibelyTrending')?.scrollIntoView({behavior:'smooth',block:'start'});},50)};
- document.getElementById('mProfile').onclick=()=>{explore();setTimeout(()=>{document.getElementById('vibelyProfilePanel')?.scrollIntoView({behavior:'smooth',block:'start'});},50)};
+ document.getElementById('mProfile').onclick=()=>{window.location.href='/profile.html'};
  document.getElementById('businessBtn')?.addEventListener('click',business);
  document.getElementById('exploreBtn')?.addEventListener('click',explore);
 }
