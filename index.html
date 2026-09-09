@@ -39,4 +39,5 @@ async function saveVibe(){if(!currentPlace||!selectedEmoji)return;const vibe=sel
 document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{currentFilter=c.dataset.filter;document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('selected',x===c));render()}));$('searchBtn').addEventListener('click',searchPlaces);$('search').addEventListener('keydown',e=>{if(e.key==='Enter')searchPlaces()});$('businessBtn').addEventListener('click',()=>{$('#explore').style.display='none';$('exploreContent').style.display='none';$('business').classList.add('show');$('businessBtn').classList.add('active');$('exploreBtn').classList.remove('active')});$('exploreBtn').addEventListener('click',()=>{$('#explore').style.display='block';$('exploreContent').style.display='block';$('business').classList.remove('show');$('exploreBtn').classList.add('active');$('businessBtn').classList.remove('active')});$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
 </script>
 <script src="/share-vibe.js"></script>
+<script src="/vibely-launch.js"></script>
 </body></html>
