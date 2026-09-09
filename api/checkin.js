@@ -1,4 +1,5 @@
 const ALLOWED = ["😍", "😊", "🔥", "😌", "🥳"];
+const COMMUNITY_VIBE_VALUES = { "😍": 9.7, "😊": 8.9, "🔥": 9.5, "😌": 8.6, "🥳": 9.3 };
 const CHECKIN_WINDOW_SECONDS = 3 * 60 * 60;
 
 function redisConfig() {
@@ -82,6 +83,28 @@ function countsFromEntries(entries) {
   return counts;
 }
 
+function communityConfidence(total) {
+  if (total < 5) return 0;
+  if (total < 20) return 0.10;
+  if (total < 50) return 0.20;
+  return 0.30;
+}
+
+function communitySignal(counts, total, dominant) {
+  const weightedTotal = Object.entries(counts).reduce((sum, [vibe, count]) => {
+    return sum + (COMMUNITY_VIBE_VALUES[vibe] || 0) * Number(count || 0);
+  }, 0);
+
+  return {
+    available: total > 0,
+    total,
+    average: total ? Number((weightedTotal / total).toFixed(1)) : null,
+    dominant,
+    confidence: communityConfidence(total),
+    influencePercent: Math.round(communityConfidence(total) * 100)
+  };
+}
+
 async function cleanup(placeId) {
   const indexKey = activeIndexKey(placeId);
   const vibeKey = activeVibeKey(placeId);
@@ -122,7 +145,8 @@ async function getLive(placeId) {
     counts,
     total,
     dominant,
-    windowMinutes: Math.round(CHECKIN_WINDOW_SECONDS / 60)
+    windowMinutes: Math.round(CHECKIN_WINDOW_SECONDS / 60),
+    community: communitySignal(counts, total, dominant)
   };
 }
 
