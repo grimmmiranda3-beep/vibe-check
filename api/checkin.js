@@ -1,6 +1,8 @@
 const ALLOWED = ["😍", "😊", "🔥", "😌", "🥳"];
 const COMMUNITY_VIBE_VALUES = { "😍": 9.7, "😊": 8.9, "🔥": 9.5, "😌": 8.6, "🥳": 9.3 };
 const CHECKIN_WINDOW_SECONDS = 3 * 60 * 60;
+const CHECKIN_RATE_LIMIT = 12;
+const CHECKIN_RATE_WINDOW_SECONDS = 60;
 
 function redisConfig() {
   return {
@@ -56,6 +58,10 @@ function activeIndexKey(placeId) {
 
 function activeVibeKey(placeId) {
   return `${baseKey(placeId)}:vibes`;
+}
+
+function rateKey(visitorId) {
+  return `vibe-check:rate:checkin:${String(visitorId).slice(0, 120)}`;
 }
 
 function getCookie(req, name) {
@@ -150,6 +156,15 @@ async function getLive(placeId) {
   };
 }
 
+async function enforceRateLimit(visitorId) {
+  const key = rateKey(visitorId);
+  const result = await redis(["INCR", key]);
+  if (!result) return true;
+  const count = Number(result.result || 0);
+  if (count === 1) await redis(["EXPIRE", key, CHECKIN_RATE_WINDOW_SECONDS]);
+  return count <= CHECKIN_RATE_LIMIT;
+}
+
 export default async function handler(req, res) {
   noStore(res);
 
@@ -179,6 +194,10 @@ export default async function handler(req, res) {
     if (!visitorId) {
       visitorId = makeVisitorId();
       setVisitorCookie(res, visitorId);
+    }
+
+    if (!(await enforceRateLimit(visitorId))) {
+      return res.status(429).json({ error: "You've checked in a lot. Please wait a minute before trying again." });
     }
 
     const { indexKey, vibeKey } = await cleanup(placeId);
