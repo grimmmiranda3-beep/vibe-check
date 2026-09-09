@@ -22,15 +22,12 @@
       const response=await originalFetch(input,init);
       try{const url=typeof input==='string'?input:(input?.url||'');
         if(url.includes('/api/search?')){const copy=response.clone();copy.json().then(data=>{if(Array.isArray(data?.places))window.__vibePlaces=data.places}).catch(()=>{});}
-        if(url.includes('/api/checkin')&&(init?.method||'GET').toUpperCase()==='POST'){const copy=response.clone();copy.json().then(data=>{if(response.ok&&data?.ok)showCheckinSuccess(data)}).catch(()=>{});}
       }catch{} return response;
     };window.__vibeCheckinFetchPatched=true;
   }
   function addButtons(){document.querySelectorAll('.place').forEach((card,index)=>{const actions=card.querySelector('.place-actions');if(actions&&!actions.querySelector('.checkin-btn')){const button=document.createElement('button');button.type='button';button.className='small-btn checkin-btn';button.textContent='💜 Check in';button.addEventListener('click',function(){if(typeof window.openModal==='function')window.openModal(index)});actions.appendChild(button)}})}
   function getPlaceId(card){const buttons=card.querySelectorAll('.place-actions button');const maps=buttons[1];const mapsUrl=maps?.getAttribute('onclick')||'';const match=mapsUrl.match(/window\.open\('([^']+)'/);const href=match?match[1]:'';const places=Array.isArray(window.__vibePlaces)?window.__vibePlaces:[];const found=places.find(p=>p?.url===href);if(found?.id)return found.id;const view=buttons[0];const onclick=view?.getAttribute('onclick')||'';const indexMatch=onclick.match(/openModal\((\d+)\)/);const index=indexMatch?Number(indexMatch[1]):-1;return places[index]?.id||null}
   async function hydrateCard(card){if(card.dataset.liveLoaded==='1')return;const placeId=getPlaceId(card);if(!placeId)return;card.dataset.liveLoaded='1';let host=card.querySelector('.live-signal,.live-signal-empty');if(!host){host=document.createElement('div');host.className='live-signal-empty';host.textContent='Checking live vibe…';const body=card.querySelector('.place-body');const actions=card.querySelector('.place-actions');if(body)body.insertBefore(host,actions||null)}try{const r=await fetch(`/api/checkin?placeId=${encodeURIComponent(placeId)}&_=${Date.now()}`,{cache:'no-store'});const data=await r.json();if(!r.ok)throw new Error('live unavailable');const total=Number(data.total||0),counts=data.counts||{};if(!total){host.className='live-signal-empty';host.textContent='Be the first to set the live vibe.';return}const ranked=Object.entries(counts).filter(([v])=>VIBES.includes(v)).sort((a,b)=>Number(b[1])-Number(a[1]));const dominant=ranked[0]?.[0]||data.dominant||'😊';const dominantCount=Number(ranked[0]?.[1]||0);const pct=Math.round(dominantCount/total*100);host.className='live-signal';host.innerHTML=`<span class="live-signal-main"><span class="live-dot"></span>${dominant} ${WORDS[dominant]||'Live vibe'}</span><span class="live-signal-meta">${total} live · ${pct}% leading</span>`}catch{host.className='live-signal-empty';host.textContent='Live vibe will appear as people check in.'}}
-  function showCheckinSuccess(data){const body=document.getElementById('modalBody'),modal=document.getElementById('modal');if(!body||!modal)return;const vibe=data.vibe||'😊',word=WORDS[vibe]||'Checked in',total=Number(data.total||0),counts=data.counts||{};const dominant=data.dominant||Object.entries(counts).filter(([v])=>VIBES.includes(v)).sort((a,b)=>Number(b[1])-Number(a[1]))[0]?.[0]||vibe;const dominantWord=WORDS[dominant]||'Live vibe';const pills=VIBES.filter(v=>Number(counts[v]||0)>0).map(v=>`<span class="checkin-vibe-stat">${v} ${Number(counts[v])}</span>`).join('');body.innerHTML=`<div class="checkin-success"><div class="checkin-success-icon">${vibe}</div><h2>You're in the vibe! ✨</h2><p class="checkin-success-sub">Your check-in is live anonymously and helps everyone see what this place feels like right now.</p><div class="checkin-vibe">${vibe} ${escapeText(word)}</div><div class="checkin-live-box"><div class="checkin-live-title">Live vibe right now</div><div class="checkin-live-main"><span class="checkin-live-emoji">${dominant}</span><span class="checkin-live-word">${escapeText(dominantWord)}</span><span class="checkin-live-count">${total} check-in${total===1?'':'s'}</span></div>${pills?`<div class="checkin-vibes">${pills}</div>`:''}</div><div class="checkin-success-actions"><button type="button" onclick="closeModal()">Done</button><button type="button" class="checkin-done" onclick="closeModal();window.location.href='profile.html'">View my check-ins</button></div></div>`;modal.classList.add('show')}
-  function escapeText(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
   function addFeedLink(){
     if(document.querySelector('.vibe-feed-link'))return;
     const host=document.querySelector('.section-title');
@@ -39,6 +36,19 @@
     const side=host.parentElement;side.insertBefore(link,host.nextSibling);
   }
   function hydrateLiveSignals(){document.querySelectorAll('.place').forEach(hydrateCard)}
-  function init(){addStyles();captureSearchResults();addButtons();addFeedLink();hydrateLiveSignals();const target=document.getElementById('places');if(target){new MutationObserver(function(){addButtons();addFeedLink();hydrateLiveSignals()}).observe(target,{childList:true,subtree:true})}}
+  function refreshAfterCheckin(){
+    document.querySelectorAll('.place').forEach(card=>{delete card.dataset.liveLoaded});
+    hydrateLiveSignals();
+  }
+  function wrapSaveVibe(){
+    if(window.__vibeSaveWrapped||typeof window.saveVibe!=='function')return;
+    const originalSave=window.saveVibe;
+    window.saveVibe=async function(){
+      await originalSave.apply(this,arguments);
+      setTimeout(refreshAfterCheckin,50);
+    };
+    window.__vibeSaveWrapped=true;
+  }
+  function init(){addStyles();captureSearchResults();addButtons();addFeedLink();hydrateLiveSignals();wrapSaveVibe();const target=document.getElementById('places');if(target){new MutationObserver(function(){addButtons();addFeedLink();hydrateLiveSignals();wrapSaveVibe()}).observe(target,{childList:true,subtree:true})}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
