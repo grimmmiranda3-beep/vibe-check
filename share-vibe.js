@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const esc = (value) => String(value || '').replace(/[&<>\"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const esc = (value) => String(value || '').replace(/[&<>\"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[c]));
 
   async function share(place) {
     if (!place) return { ok: false, reason: 'missing-place' };
@@ -95,6 +95,13 @@
     observer.observe(document.body, { childList: true, subtree: true });
     addCardButtons();
     addModalButton();
+    if (!document.getElementById('vibely-trending-script')) {
+      const script = document.createElement('script');
+      script.id = 'vibely-trending-script';
+      script.src = '/trending.js';
+      script.defer = true;
+      document.body.appendChild(script);
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
