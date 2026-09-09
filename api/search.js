@@ -8,11 +8,7 @@ function redisConfig() {
 async function redis(command) {
   const { url, token } = redisConfig();
   if (!url || !token) return null;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(command)
-  });
+  const response = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(command) });
   if (!response.ok) throw new Error(`Storage request failed (${response.status})`);
   return response.json();
 }
@@ -32,15 +28,17 @@ function isCityOrZipQuery(q) {
   return /^\d{5}(?:-\d{4})?$/.test(s) || /^[A-Za-z][A-Za-z .'-]+(?:,\s*[A-Za-z]{2})?$/.test(s);
 }
 
-// Detect clear category intent so category searches stay category-only.
+// Detect category intent anywhere in the query, including natural searches such as
+// "coffee Vacaville" or "restaurants in Vacaville". Category intent must prevent
+// the mixed city-discovery search from returning unrelated place types.
 function getSearchType(q) {
   const s = q.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-  if (/\b(restaurants?|dining|places to eat|food spots?)\b/.test(s)) return "restaurant";
-  if (/\b(coffee shops?|coffeehouses?|cafes?|cafés?)\b/.test(s)) return "cafe";
+  if (/\b(restaurants?|dining|places to eat|food spots?|food)\b/.test(s)) return "restaurant";
+  if (/\b(coffee|coffee shops?|coffeehouses?|cafes?|cafés?)\b/.test(s)) return "cafe";
   if (/\b(bars?|pubs?|nightlife|night clubs?|nightclubs?)\b/.test(s)) return "bar";
   if (/\b(parks?|playgrounds?|nature parks?)\b/.test(s)) return "park";
-  if (/\b(gyms?|fitness centers?|fitness clubs?)\b/.test(s)) return "gym";
-  if (/\b(bakeries?)\b/.test(s)) return "bakery";
+  if (/\b(gyms?|fitness centers?|fitness clubs?|fitness)\b/.test(s)) return "gym";
+  if (/\b(bakeries?|bakery)\b/.test(s)) return "bakery";
   if (/\b(hotels?|motels?|lodging)\b/.test(s)) return "hotel";
   if (/\b(museums?)\b/.test(s)) return "museum";
   return null;
@@ -50,30 +48,21 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("CDN-Cache-Control", "no-store");
   res.setHeader("Vercel-CDN-Cache-Control", "no-store");
-
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   try {
     if (!(await rateLimit(req))) return res.status(429).json({ error: "Too many searches. Please wait a minute and try again." });
-  } catch (error) {
-    console.error("Search rate-limit error:", error);
-  }
+  } catch (error) { console.error("Search rate-limit error:", error); }
 
   const rawQuery = String(req.query.query || req.query.q || "").trim();
   if (!rawQuery) return res.status(400).json({ error: "Please provide a city, ZIP code, or place search." });
-
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Google Places API key is not configured." });
 
   const normalized = rawQuery.replace(/\s*,\s*/g, ", ");
+  const searchType = getSearchType(rawQuery);
   const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
   const queries = [...new Set([rawQuery, normalized, locationNormalized, normalized.replace(/\s*,\s*/g, " in ")])];
-  const searchType = getSearchType(rawQuery);
-
-  // Category intent must take precedence over the broad city/ZIP detector.
-  // Otherwise a query such as "restaurants" matches the old city regex and
-  // incorrectly triggers the mixed city-discovery search (which includes parks,
-  // coffee shops, bars, etc.).
   const cityDiscovery = !searchType && isCityOrZipQuery(rawQuery);
 
   async function searchGoogle(textQuery, pageSize = 10, includedType = null) {
@@ -84,13 +73,7 @@ export default async function handler(req, res) {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos,places.currentOpeningHours"
       },
-      body: JSON.stringify({
-        textQuery,
-        pageSize,
-        languageCode: "en",
-        regionCode: "US",
-        ...(includedType ? { includedType, strictTypeFiltering: true } : {})
-      })
+      body: JSON.stringify({ textQuery, pageSize, languageCode: "en", regionCode: "US", ...(includedType ? { includedType, strictTypeFiltering: true } : {}) })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || "Google Places search failed.");
@@ -100,15 +83,11 @@ export default async function handler(req, res) {
   async function resolvePhotoUri(photoName) {
     if (!photoName) return "";
     try {
-      const response = await fetch(`https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=900&maxHeightPx=650&skipHttpRedirect=true&key=${encodeURIComponent(apiKey)}`, {
-        headers: { Accept: "application/json" }
-      });
+      const response = await fetch(`https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=900&maxHeightPx=650&skipHttpRedirect=true&key=${encodeURIComponent(apiKey)}`, { headers: { Accept: "application/json" } });
       const data = await response.json().catch(() => ({}));
       if (response.ok && data.photoUri) return data.photoUri;
       console.error("Google photo URI error:", response.status, data);
-    } catch (error) {
-      console.error("Google photo URI request failed:", error);
-    }
+    } catch (error) { console.error("Google photo URI request failed:", error); }
     return "";
   }
 
@@ -132,6 +111,8 @@ export default async function handler(req, res) {
         return true;
       }).slice(0, 24);
     } else {
+      // When a category keyword is present, use strict Google type filtering for
+      // every query variant. This fixes searches like "coffee Vacaville".
       for (const query of queries) {
         try {
           googlePlaces = await searchGoogle(query, 10, searchType);
@@ -145,10 +126,9 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: lastError.message });
     }
 
-    const places = await Promise.all(googlePlaces.map(async (place) => {
+    const places = await Promise.all(googlePlaces.map(async place => {
       const firstPhoto = place.photos?.[0];
       const openingHours = place.currentOpeningHours || {};
-      const photoUri = await resolvePhotoUri(firstPhoto?.name || "");
       return {
         id: place.id,
         name: place.displayName?.text || "Unknown place",
@@ -162,8 +142,8 @@ export default async function handler(req, res) {
         longitude: place.location?.longitude ?? null,
         openNow: openingHours.openNow ?? null,
         weekdayDescriptions: openingHours.weekdayDescriptions || [],
-        photoName: photoUri,
-        photoAttributions: (firstPhoto?.authorAttributions || []).map((a) => ({ displayName: a.displayName || "Google Maps contributor", uri: a.uri || "" }))
+        photoName: await resolvePhotoUri(firstPhoto?.name || ""),
+        photoAttributions: (firstPhoto?.authorAttributions || []).map(a => ({ displayName: a.displayName || "Google Maps contributor", uri: a.uri || "" }))
       };
     }));
 
@@ -173,7 +153,7 @@ export default async function handler(req, res) {
       if (rankDiff !== 0) return rankDiff;
       return (Number(b.rating) || 0) - (Number(a.rating) || 0);
     });
-    return res.status(200).json({ places, count: places.length, cityDiscovery });
+    return res.status(200).json({ places, count: places.length, cityDiscovery, searchType });
   } catch (error) {
     console.error("Google Places search error:", error);
     return res.status(500).json({ error: "Something went wrong while searching for places." });
