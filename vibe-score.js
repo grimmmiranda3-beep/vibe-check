@@ -1,7 +1,50 @@
-// Vibe Check — Vibe Score v2
-// Scores are intentionally transparent and bounded. This is an initial model;
-// Vibe Check community data can be added later as a separate signal.
-function calculateVibeScore(place) {
+// Vibe Check — Vibe Score v3
+// Scores are transparent and bounded. Google signals provide the baseline;
+// anonymous Vibe Check community activity can influence the score gradually.
+const COMMUNITY_VIBE_VALUES = {
+  "😍": 9.7, // Loved
+  "😊": 8.9, // Good
+  "🔥": 9.5, // Lively
+  "😌": 8.6, // Relaxed
+  "🥳": 9.3  // Fun
+};
+
+function communityConfidence(total) {
+  const count = Math.max(0, Number(total) || 0);
+  if (count < 5) return 0;
+  if (count < 20) return 0.10;
+  if (count < 50) return 0.20;
+  return 0.30;
+}
+
+function calculateCommunitySignal(community) {
+  const counts = community?.counts || {};
+  const total = Math.max(0, Number(community?.total) || 0);
+  if (!total) {
+    return { available: false, total: 0, confidence: 0, average: null, dominant: null };
+  }
+
+  let weightedTotal = 0;
+  for (const [vibe, count] of Object.entries(counts)) {
+    if (!Object.prototype.hasOwnProperty.call(COMMUNITY_VIBE_VALUES, vibe)) continue;
+    weightedTotal += COMMUNITY_VIBE_VALUES[vibe] * Math.max(0, Number(count) || 0);
+  }
+
+  const average = weightedTotal > 0 ? Number((weightedTotal / total).toFixed(1)) : null;
+  const dominant = Object.entries(counts)
+    .filter(([vibe]) => Object.prototype.hasOwnProperty.call(COMMUNITY_VIBE_VALUES, vibe))
+    .sort((a, b) => Number(b[1]) - Number(a[1]))[0]?.[0] || null;
+
+  return {
+    available: Boolean(average),
+    total,
+    confidence: communityConfidence(total),
+    average,
+    dominant
+  };
+}
+
+function calculateVibeScore(place, community = null) {
   const rating = Math.max(0, Math.min(5, Number(place.rating) || 0));
   const reviewCount = Math.max(0, Number(place.userRatingCount) || 0);
   const openNow = place.openNow;
@@ -22,8 +65,7 @@ function calculateVibeScore(place) {
   // Weighted 15%.
   const availabilityScore = openNow === true ? 100 : openNow === false ? 45 : 70;
 
-  // Place-type/context signal. Weighted 15%. This is deliberately modest so
-  // category assumptions cannot dominate the score.
+  // Place-type/context signal. Weighted 15%.
   let contextScore = 70;
   if (/restaurant|food|dining/.test(type)) contextScore = 82;
   else if (/cafe|coffee/.test(type)) contextScore = 80;
@@ -47,9 +89,39 @@ function calculateVibeScore(place) {
     contextScore * 0.15 +
     tagScore * 0.20;
 
-  // Convert 0–100 into the consumer-facing 5.0–9.9 scale.
-  return Number((5 + weighted / 20).toFixed(1));
+  const baseline = Number((5 + weighted / 20).toFixed(1));
+  const signal = calculateCommunitySignal(community);
+
+  // Community activity is intentionally gated. Fewer than 5 live check-ins
+  // cannot move the score, 5–19 have light influence, 20–49 moderate influence,
+  // and 50+ provide the strongest community signal (still capped at 30%).
+  if (!signal.available || signal.confidence === 0) return baseline;
+
+  return Number((baseline * (1 - signal.confidence) + signal.average * signal.confidence).toFixed(1));
 }
 
-if (typeof window !== 'undefined') window.calculateVibeScore = calculateVibeScore;
-if (typeof module !== 'undefined') module.exports = { calculateVibeScore };
+function getScoreDetails(place, community = null) {
+  const baseline = calculateVibeScore(place, null);
+  const signal = calculateCommunitySignal(community);
+  const score = calculateVibeScore(place, community);
+
+  return {
+    score,
+    baseline,
+    community: signal,
+    communityInfluencePercent: Math.round(signal.confidence * 100)
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window.calculateVibeScore = calculateVibeScore;
+  window.calculateCommunitySignal = calculateCommunitySignal;
+  window.getScoreDetails = getScoreDetails;
+}
+if (typeof module !== 'undefined') {
+  module.exports = {
+    calculateVibeScore,
+    calculateCommunitySignal,
+    getScoreDetails
+  };
+}
