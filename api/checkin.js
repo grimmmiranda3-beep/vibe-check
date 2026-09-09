@@ -4,7 +4,7 @@ function noStore(res){res.setHeader("Cache-Control","no-store, no-cache, must-re
 function config(){return{url:process.env.SUPABASE_URL||"",key:process.env.SUPABASE_ANON_KEY||process.env.SUPABASE_PUBLISHABLE_KEY||""}}
 function authHeader(req){const v=req.headers?.authorization||"";return /^Bearer\s+\S+/i.test(v)?v:""}
 async function rpc(name,args,req){const{url,key}=config();if(!url||!key)throw Error("Supabase is not configured.");const r=await fetch(`${url.replace(/\/$/,"")}/rest/v1/rpc/${name}`,{method:"POST",headers:{apikey:key,Authorization:authHeader(req)||`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify(args)});const t=await r.text();let d;try{d=t?JSON.parse(t):null}catch{d=null}if(!r.ok)throw Error(d?.message||d?.hint||"Supabase request failed.");return d}
-function getCookie(req){const raw=req.headers?.cookie||"";const m=raw.split(";").map(x=>x.trim()).find(x=>x.startsWith("vibe_visitor="));return m?decodeURIComponent(x=m.slice(13)):""}
+function getCookie(req){const raw=req.headers?.cookie||"";const m=raw.split(";").map(x=>x.trim()).find(x=>x.startsWith("vibe_visitor="));return m?decodeURIComponent(m.slice("vibe_visitor=".length)):""}
 function visitor(){return`v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`}
 function setCookie(res,v){res.setHeader("Set-Cookie",`vibe_visitor=${encodeURIComponent(v)}; Max-Age=31536000; Path=/; HttpOnly; SameSite=Lax; Secure`)}
 function live(d){return{available:true,counts:d?.counts||{},total:Number(d?.total||0),dominant:d?.dominant||null,windowMinutes:Number(d?.windowMinutes||180),community:d?.community||{available:false,total:0,average:null,dominant:null,dominantPercent:0,influencePercent:0,windowMinutes:180}}}
