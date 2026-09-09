@@ -12,18 +12,24 @@ function noStore(res) {
 function config() {
   return {
     url: process.env.SUPABASE_URL || "",
-    key: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || ""
+    key: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || ""
   };
 }
 
-async function rpc(name, args) {
+function authHeader(req) {
+  const value = req.headers?.authorization || "";
+  return /^Bearer\s+\S+/i.test(value) ? value : "";
+}
+
+async function rpc(name, args, req) {
   const { url, key } = config();
   if (!url || !key) throw new Error("Supabase is not configured.");
+  const bearer = authHeader(req) || `Bearer ${key}`;
   const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/rpc/${name}`, {
     method: "POST",
     headers: {
       apikey: key,
-      Authorization: `Bearer ${key}`,
+      Authorization: bearer,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(args)
@@ -79,15 +85,22 @@ export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
+    if (req.method === "GET" && String(req.query?.history || "") === "1") {
+      if (!authHeader(req)) return res.status(401).json({ error: "Sign in to view your check-ins." });
+      const limit = Math.min(Math.max(Number(req.query?.limit || 20), 1), 50);
+      const history = await rpc("vibe_my_checkins", { p_limit: limit }, req);
+      return res.status(200).json({ ok: true, checkins: Array.isArray(history) ? history : [] });
+    }
+
     const placeId = req.method === "GET" ? req.query?.placeId : (req.body || {}).placeId;
     if (!validPlaceId(placeId)) return res.status(400).json({ error: "A valid placeId is required." });
 
     if (req.method === "GET") {
-      const live = await rpc("vibe_live_checkins", { p_place_id: String(placeId).trim() });
+      const live = await rpc("vibe_live_checkins", { p_place_id: String(placeId).trim() }, req);
       return res.status(200).json(normalizeLive(live));
     }
 
-    const { vibe } = req.body || {};
+    const { vibe, placeName, placeAddress } = req.body || {};
     if (!ALLOWED.includes(vibe)) return res.status(400).json({ error: "A valid vibe is required." });
 
     let visitorId = getCookie(req, "vibe_visitor");
@@ -99,10 +112,12 @@ export default async function handler(req, res) {
     const result = await rpc("vibe_submit_checkin", {
       p_place_id: String(placeId).trim(),
       p_visitor_id: visitorId,
-      p_vibe: vibe
-    });
+      p_vibe: vibe,
+      p_place_name: typeof placeName === "string" ? placeName.slice(0, 300) : null,
+      p_place_address: typeof placeAddress === "string" ? placeAddress.slice(0, 500) : null
+    }, req);
     const state = Array.isArray(result) ? result[0] || {} : result || {};
-    const live = normalizeLive(await rpc("vibe_live_checkins", { p_place_id: String(placeId).trim() }));
+    const live = normalizeLive(await rpc("vibe_live_checkins", { p_place_id: String(placeId).trim() }, req));
 
     return res.status(200).json({
       ok: true,
