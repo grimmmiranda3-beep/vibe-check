@@ -6,6 +6,7 @@ on:
     paths:
       - 'share-vibe.js'
       - 'index.html'
+      - '.github/workflows/connect-share-vibe.yml'
   workflow_dispatch:
 
 permissions:
