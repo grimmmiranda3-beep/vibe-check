@@ -1,40 +1,102 @@
-// Vibely Check — isolated sharing helper.
-// Safe to load on the existing app without changing the current search/check-in flow.
+// Vibely Check — isolated Share Vibe feature.
 (function () {
   'use strict';
 
-  window.VibelyShare = {
-    async share(place) {
-      if (!place) return { ok: false, reason: 'missing-place' };
-      const name = place.name || 'this place';
-      const score = place.vibeScore ?? place.score;
-      const emoji = place.vibeEmoji || place.emoji || '✨';
-      const scoreText = Number.isFinite(Number(score)) ? ` ${Number(score).toFixed(1)}/10` : '';
-      const url = place.url || `${window.location.origin}/?place=${encodeURIComponent(place.id || name)}`;
-      const text = `${emoji} The vibe at ${name} is${scoreText} right now. Check it out on Vibely Check.`;
+  const esc = (value) => String(value || '').replace(/[&<>\"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: `Vibely Check — ${name}`, text, url });
-          return { ok: true, method: 'native' };
-        } catch (error) {
-          if (error && error.name === 'AbortError') return { ok: false, reason: 'cancelled' };
-        }
-      }
+  async function share(place) {
+    if (!place) return { ok: false, reason: 'missing-place' };
+    const name = place.name || 'this place';
+    const score = Number(place.score);
+    const scoreText = Number.isFinite(score) ? ` ${score.toFixed(1)}/10` : '';
+    const emoji = place.emoji || '✨';
+    const url = place.url || `${window.location.origin}/?place=${encodeURIComponent(name)}`;
+    const text = `${emoji} The vibe at ${name} is${scoreText} right now. Check it out on Vibely Check.`;
 
+    if (navigator.share) {
       try {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-        return { ok: true, method: 'clipboard' };
-      } catch (_) {
-        const area = document.createElement('textarea');
-        area.value = `${text} ${url}`;
-        area.setAttribute('readonly', '');
-        area.style.position = 'fixed'; area.style.opacity = '0';
-        document.body.appendChild(area); area.select();
-        const copied = document.execCommand('copy');
-        area.remove();
-        return { ok: copied, method: copied ? 'clipboard-fallback' : 'failed' };
+        await navigator.share({ title: `Vibely Check — ${name}`, text, url });
+        return { ok: true, method: 'native' };
+      } catch (error) {
+        if (error && error.name === 'AbortError') return { ok: false, reason: 'cancelled' };
       }
     }
-  };
+
+    try {
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      showToast('Vibe link copied!');
+      return { ok: true, method: 'clipboard' };
+    } catch (_) {
+      const area = document.createElement('textarea');
+      area.value = `${text} ${url}`;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed'; area.style.opacity = '0';
+      document.body.appendChild(area); area.select();
+      const copied = document.execCommand('copy');
+      area.remove();
+      if (copied) showToast('Vibe link copied!');
+      return { ok: copied, method: copied ? 'clipboard-fallback' : 'failed' };
+    }
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(window.__vibelyToastTimer);
+    window.__vibelyToastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  function makeButton(place) {
+    const button = document.createElement('button');
+    button.className = 'small-btn vibely-share-btn';
+    button.type = 'button';
+    button.textContent = '↗ Share Vibe';
+    button.addEventListener('click', () => share(place));
+    return button;
+  }
+
+  function addCardButtons() {
+    document.querySelectorAll('.place').forEach((card) => {
+      if (card.querySelector('.vibely-share-btn')) return;
+      const actions = card.querySelector('.place-actions');
+      if (!actions) return;
+      const name = card.querySelector('h3')?.textContent?.trim() || 'this place';
+      const scoreText = card.querySelector('.score')?.textContent || '';
+      const score = parseFloat(scoreText.replace(/[^0-9.]/g, ''));
+      const emoji = card.querySelector('.tag')?.textContent?.trim()?.split(' ')[0] || '✨';
+      actions.appendChild(makeButton({ name, score, emoji }));
+    });
+  }
+
+  function addModalButton() {
+    const body = document.getElementById('modalBody');
+    if (!body || body.querySelector('.vibely-share-modal-btn')) return;
+    const heading = body.querySelector('h2');
+    if (!heading) return;
+    const name = heading.textContent.trim();
+    const score = parseFloat((body.querySelector('.bigscore')?.textContent || '').replace(/[^0-9.]/g, ''));
+    const button = makeButton({ name, score, emoji: '✨' });
+    button.classList.add('vibely-share-modal-btn');
+    button.style.width = '100%';
+    button.style.marginTop = '10px';
+    body.appendChild(button);
+  }
+
+  window.VibelyShare = { share };
+
+  const observer = new MutationObserver(() => {
+    addCardButtons();
+    addModalButton();
+  });
+
+  function start() {
+    observer.observe(document.body, { childList: true, subtree: true });
+    addCardButtons();
+    addModalButton();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();
