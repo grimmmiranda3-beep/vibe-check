@@ -1,3 +1,6 @@
+const WINDOW_SECONDS = 60 * 60;
+const RATE_LIMIT = 3;
+
 function redisConfig() {
   return {
     url:
@@ -35,11 +38,38 @@ function clean(value, max) {
   return String(value || "").trim().replace(/[<>]/g, "").slice(0, max);
 }
 
+function clientKey(req) {
+  const forwarded = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded.slice(0, 80) || "unknown";
+}
+
+async function allowedRequest(req) {
+  const key = `vibe-check:rate:business-lead:${clientKey(req)}`;
+  const result = await redis(["INCR", key]);
+  if (!result) return true;
+  const count = Number(result.result || 0);
+  if (count === 1) await redis(["EXPIRE", key, WINDOW_SECONDS]);
+  return count <= RATE_LIMIT;
+}
+
 export default async function handler(req, res) {
   noStore(res);
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
 
+  try {
+    if (!(await allowedRequest(req))) {
+      return res.status(429).json({ ok: false, error: "Too many requests. Please try again later." });
+    }
+  } catch (error) {
+    console.error("Business lead rate-limit error:", error);
+  }
+
   const body = req.body || {};
+  // Honeypot for simple bots. Real users should leave this field empty.
+  if (String(body.website || "").trim()) {
+    return res.status(201).json({ ok: true, message: "Thanks! We'll be in touch." });
+  }
+
   const businessName = clean(body.businessName, 160);
   const email = clean(body.email, 160).toLowerCase();
   const placeId = clean(body.placeId, 120);
