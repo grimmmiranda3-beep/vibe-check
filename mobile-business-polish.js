@@ -1,4 +1,4 @@
-// Vibely Check — mobile business experience polish
+// Vibely Check — mobile navigation polish
 (function(){'use strict';
 function init(){
  if(document.getElementById('vibelyMobilePolish')) return;
@@ -36,21 +36,37 @@ function init(){
  #mobileBusinessBenefits{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px;text-align:center;color:#5d5270}
  #mobileBusinessBenefits div{font-size:11px;line-height:1.3}
  #mobileBusinessBenefits b{display:block;font-size:23px;margin-bottom:5px}
+ .vibely-profile-panel{margin:22px 0;background:#fff;border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 8px 28px #21142c08}
+ .vibely-profile-panel h2{margin:0 0 7px;font-size:22px}
+ .vibely-profile-panel p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+ .vibely-profile-actions{display:grid;gap:9px;margin-top:15px}
+ .vibely-profile-actions button{border:1px solid var(--line);background:#fff;border-radius:13px;padding:12px;text-align:left;font-weight:800;cursor:pointer}
 }
-@media(min-width:851px){#mobileBusinessBar,#mobileBusinessCta,#mobileBusinessBenefits{display:none!important}}
+@media(min-width:851px){#mobileBusinessBar,#mobileBusinessCta,#mobileBusinessBenefits,.vibely-profile-panel{display:none!important}}
 `;
  document.head.appendChild(style);
- const bar=document.createElement('div');bar.id='mobileBusinessBar';bar.innerHTML='<button id="mExplore"><span class="biz-icon">📍</span>Explore</button><button id="mTrending"><span class="biz-icon">🔥</span>Trending</button><button id="mBusiness" class="active"><span class="biz-icon">🏪</span>For Businesses</button><button id="mProfile"><span class="biz-icon">●</span>Profile</button>';document.body.appendChild(bar);
+ const bar=document.createElement('div');bar.id='mobileBusinessBar';bar.innerHTML='<button id="mExplore" class="active"><span class="biz-icon">📍</span>Explore</button><button id="mTrending"><span class="biz-icon">🔥</span>Trending</button><button id="mBusiness"><span class="biz-icon">🏪</span>For Businesses</button><button id="mProfile"><span class="biz-icon">●</span>Profile</button>';document.body.appendChild(bar);
  const section=document.getElementById('business');
  if(section){
   const cta=document.createElement('button');cta.id='mobileBusinessCta';cta.textContent='🏪  I own this business  →';section.querySelector('.barbox')?.before(cta);
   const benefits=document.createElement('div');benefits.id='mobileBusinessBenefits';benefits.innerHTML='<div><b>📊</b>See your<br>reviews</div><div><b>👥</b>Understand<br>customers</div><div><b>♥</b>Grow your<br>business</div>';section.appendChild(benefits);
   cta.onclick=()=>window.VibelyClaim?.show(window.__vibelyPlaces?.[0]||{});
  }
- function business(){document.getElementById('explore')?.style.setProperty('display','none','important');document.getElementById('exploreContent')?.style.setProperty('display','none','important');section?.classList.add('show');document.getElementById('mBusiness')?.classList.add('active');}
- function explore(){section?.classList.remove('show');document.getElementById('explore')?.style.removeProperty('display');document.getElementById('exploreContent')?.style.removeProperty('display');document.getElementById('mBusiness')?.classList.remove('active');}
- document.getElementById('mBusiness').onclick=business;document.getElementById('mExplore').onclick=explore;document.getElementById('mTrending').onclick=()=>{explore();document.getElementById('places')?.scrollIntoView({behavior:'smooth'})};document.getElementById('mProfile').onclick=()=>window.scrollTo({top:0,behavior:'smooth'});
- document.getElementById('businessBtn')?.addEventListener('click',business);document.getElementById('exploreBtn')?.addEventListener('click',explore);document.getElementById('mobileBusinessCta')?.addEventListener('click',()=>window.VibelyClaim?.show(window.__vibelyPlaces?.[0]||{}));
+ const exploreContent=document.getElementById('exploreContent');
+ if(exploreContent && !document.getElementById('vibelyProfilePanel')){
+  const profile=document.createElement('section');profile.id='vibelyProfilePanel';profile.className='vibely-profile-panel';profile.innerHTML='<h2>👤 Your Vibe Check</h2><p>Your profile is anonymous. Your check-ins stay private to this device while the community signal remains anonymous.</p><div class="vibely-profile-actions"><button id="profileScrollCheckins">💜 View my recent check-ins</button><button id="profilePrivacy">🔒 Privacy & anonymous check-ins</button></div>';exploreContent.appendChild(profile);
+  document.getElementById('profileScrollCheckins').onclick=()=>{document.getElementById('places')?.scrollIntoView({behavior:'smooth',block:'start'})};
+  document.getElementById('profilePrivacy').onclick=()=>{window.location.href='/privacy.html'};
+ }
+ function setActive(id){document.querySelectorAll('#mobileBusinessBar button').forEach(b=>b.classList.toggle('active',b.id===id));}
+ function business(){document.getElementById('explore')?.style.setProperty('display','none','important');document.getElementById('exploreContent')?.style.setProperty('display','none','important');section?.classList.add('show');setActive('mBusiness');window.scrollTo({top:0,behavior:'smooth'});}
+ function explore(){section?.classList.remove('show');document.getElementById('explore')?.style.removeProperty('display');document.getElementById('exploreContent')?.style.removeProperty('display');setActive('mExplore');window.scrollTo({top:0,behavior:'smooth'});}
+ document.getElementById('mBusiness').onclick=business;
+ document.getElementById('mExplore').onclick=explore;
+ document.getElementById('mTrending').onclick=()=>{explore();setTimeout(()=>{document.getElementById('vibelyTrending')?.scrollIntoView({behavior:'smooth',block:'start'});},50)};
+ document.getElementById('mProfile').onclick=()=>{explore();setTimeout(()=>{document.getElementById('vibelyProfilePanel')?.scrollIntoView({behavior:'smooth',block:'start'});},50)};
+ document.getElementById('businessBtn')?.addEventListener('click',business);
+ document.getElementById('exploreBtn')?.addEventListener('click',explore);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
