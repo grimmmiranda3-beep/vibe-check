@@ -3,11 +3,10 @@
 (function(){
   'use strict';
   const ID='vcNearbyCheckin';
-  const VIBES=[['😍','Loved'],['😊','Chill'],['🔥','Energetic'],['😌','Relaxed'],['🥳','Party']];
-  const esc=s=>String(s??'').replace(/[&<>\'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
+  const VIBES=[['😍','Loved'],['😊','Good vibes'],['🔥','Energetic'],['😌','Relaxed'],['🥳','Party'],['😕','Not my vibe']];
+  const esc=s=>String(s??'').replace(/[&<>\'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
 
   let nearbyPlaces=[];
-  let coords=null;
 
   function styles(){
     if(document.getElementById(ID+'Styles')) return;
@@ -17,22 +16,23 @@
       #${ID} .vc-ci-btn:hover{transform:translateY(-1px);box-shadow:0 6px 15px rgba(124,58,237,.18)}
       .vc-ci-overlay{position:fixed;inset:0;background:rgba(23,16,28,.58);display:none;place-items:center;z-index:90;padding:18px}
       .vc-ci-overlay.show{display:grid}
-      .vc-ci-card{width:min(520px,100%);background:#fff;border-radius:24px;padding:22px;box-shadow:0 30px 80px rgba(18,10,28,.28)}
+      .vc-ci-card{width:min(560px,100%);background:#fff;border-radius:24px;padding:22px;box-shadow:0 30px 80px rgba(18,10,28,.28)}
       .vc-ci-close{float:right;border:0;background:#f3eff5;border-radius:50%;width:34px;height:34px;font-size:20px;cursor:pointer}
       .vc-ci-kicker{color:#7c3aed;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
       .vc-ci-card h2{margin:5px 0 4px;font-size:25px}
       .vc-ci-place{color:#77727b;font-size:12px;line-height:1.4;margin-bottom:16px}
       .vc-ci-prompt{font-size:14px;font-weight:850;margin:15px 0 9px}
-      .vc-ci-vibes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .vc-ci-vibes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
       .vc-ci-vibe{border:1px solid #ece8ee;background:#fff;border-radius:15px;padding:12px;text-align:left;cursor:pointer;display:flex;align-items:center;gap:10px}
       .vc-ci-vibe:hover{background:#faf7ff;border-color:#d9c7f5}
+      .vc-ci-vibe.not-my-vibe{grid-column:1/-1;justify-content:center;background:#fbf9fc}
       .vc-ci-vibe span:first-child{font-size:25px}.vc-ci-vibe strong{font-size:13px}
       .vc-ci-note{margin-top:15px;padding:11px 12px;border-radius:13px;background:#faf8ff;border:1px solid #eadcff;color:#77727b;font-size:11px;line-height:1.45}
       .vc-ci-status{min-height:18px;margin-top:12px;font-size:12px;color:#6d28d9;font-weight:800}
       .vc-ci-result{text-align:center;padding:8px 0 2px}.vc-ci-result-emoji{font-size:48px;margin:8px}.vc-ci-result h3{font-size:24px;margin:5px 0}.vc-ci-result p{color:#77727b;font-size:13px;line-height:1.5}
       .vc-ci-live{margin-top:14px;padding:14px;border:1px solid #eadcff;border-radius:16px;background:linear-gradient(135deg,#faf8ff,#fff7fb);text-align:left}
       .vc-ci-live strong{display:block;font-size:11px;color:#7c3aed;text-transform:uppercase;letter-spacing:.06em}.vc-ci-live-main{font-size:17px;font-weight:900;margin-top:5px}.vc-ci-live-sub{font-size:11px;color:#77727b;margin-top:3px}
-      @media(max-width:520px){.vc-ci-vibes{grid-template-columns:1fr}.vc-ci-card{padding:18px}}
+      @media(max-width:620px){.vc-ci-vibes{grid-template-columns:1fr 1fr}.vc-ci-vibe.not-my-vibe{grid-column:1/-1}.vc-ci-card{padding:18px}}
     `; document.head.appendChild(s);
   }
 
@@ -45,9 +45,7 @@
         const url=typeof input==='string'?input:(input?.url||'');
         if(url.includes('/api/nearby?')){
           const copy=response.clone();
-          copy.json().then(data=>{
-            if(Array.isArray(data?.places)) nearbyPlaces=data.places;
-          }).catch(()=>{});
+          copy.json().then(data=>{if(Array.isArray(data?.places)) nearbyPlaces=data.places}).catch(()=>{});
         }
       }catch(e){}
       return response;
@@ -69,7 +67,7 @@
   function open(place){
     ensureModal();
     const body=document.getElementById(ID+'Body'), modal=document.getElementById(ID+'Modal');
-    body.innerHTML=`<div class="vc-ci-kicker">⚡ Live check-in</div><h2>Set the vibe.</h2><div class="vc-ci-place">${esc(place.place_name||'Local place')}<br>${esc(place.place_address||'')}</div><div class="vc-ci-prompt">How does it feel right now?</div><div class="vc-ci-vibes">${VIBES.map(([e,l])=>`<button class="vc-ci-vibe" data-vibe="${e}" type="button"><span>${e}</span><strong>${l}</strong></button>`).join('')}</div><div class="vc-ci-note">🔒 Anonymous by design. Your profile does not appear to other people. Your vibe simply joins the live pulse for this place.</div><div class="vc-ci-status" id="${ID}Status"></div>`;
+    body.innerHTML=`<div class="vc-ci-kicker">⚡ Live check-in</div><h2>Set the vibe.</h2><div class="vc-ci-place">${esc(place.place_name||'Local place')}<br>${esc(place.place_address||'')}</div><div class="vc-ci-prompt">How does it feel right now?</div><div class="vc-ci-vibes">${VIBES.map(([e,l])=>`<button class="vc-ci-vibe ${e==='😕'?'not-my-vibe':''}" data-vibe="${e}" type="button"><span>${e}</span><strong>${l}</strong></button>`).join('')}</div><div class="vc-ci-note">🔒 Anonymous by design. No stars, no review, no public profile. Your vibe simply joins the live pulse for this place.</div><div class="vc-ci-status" id="${ID}Status"></div>`;
     body.querySelectorAll('.vc-ci-vibe').forEach(b=>b.addEventListener('click',()=>submit(place,b.dataset.vibe)));
     modal.classList.add('show');
   }
