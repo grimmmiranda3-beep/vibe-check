@@ -1,4 +1,9 @@
-const ALLOWED = ["😍", "😊", "🔥", "😌", "🥳", "😕"];
+const VIBE_ALIASES={
+  '😍':'😍','😊':'😊','🔥':'🔥','😌':'😌','🥳':'🥳','😕':'😕',
+  'Loved':'😍','Chill':'😊','Energetic':'🔥','Relaxed':'😌','Party':'🥳','Not my vibe':'😕',
+  'loved':'😍','chill':'😊','energetic':'🔥','relaxed':'😌','party':'🥳','not my vibe':'😕'
+};
+const ALLOWED=["😍","😊","🔥","😌","🥳","😕"];
 function noStore(res){res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");res.setHeader("Pragma","no-cache");res.setHeader("Expires","0")}
 function config(){return{url:process.env.SUPABASE_URL||"",key:process.env.SUPABASE_ANON_KEY||process.env.SUPABASE_PUBLISHABLE_KEY||""}}
 function authHeader(req){const v=req.headers?.authorization||"";return /^Bearer\s+\S+/i.test(v)?v:""}
@@ -30,11 +35,10 @@ export default async function handler(req,res){
   if(req.method==="GET")return res.status(200).json(live(await rpc("vibe_live_checkins",{p_place_id:placeId.trim()},req)));
 
   const{vibe,placeName,placeAddress,latitude,longitude}=req.body||{};
-  if(!ALLOWED.includes(vibe))return res.status(400).json({error:"A valid vibe is required."});
+  const normalizedVibe=typeof vibe==="string"?VIBE_ALIASES[vibe.trim()]||VIBE_ALIASES[vibe.trim().toLowerCase()]:null;
+  if(!ALLOWED.includes(normalizedVibe))return res.status(400).json({error:"A valid vibe is required."});
   let visitorId=getCookie(req);if(!visitorId){visitorId=visitor();setCookie(res,visitorId)}
 
-  // These coordinates are the user's device coordinates. Nearby is never based
-  // on the searched business or the business's coordinates.
   const userLat=Number(latitude),userLng=Number(longitude);
   const validUserLat=Number.isFinite(userLat)&&Math.abs(userLat)<=90?userLat:null;
   const validUserLng=Number.isFinite(userLng)&&Math.abs(userLng)<=180?userLng:null;
@@ -47,17 +51,12 @@ export default async function handler(req,res){
   const placeLng=Number.isFinite(place?.longitude)&&Math.abs(place.longitude)<=180?place.longitude:null;
 
   const d=await rpc("vibe_submit_checkin",{
-    p_place_id:placeId.trim(),
-    p_visitor_id:visitorId,
-    p_vibe:vibe,
-    p_place_name:resolvedName,
-    p_place_address:resolvedAddress,
-    p_latitude:validUserLat,
-    p_longitude:validUserLng,
-    p_place_latitude:placeLat,
-    p_place_longitude:placeLng
+    p_place_id:placeId.trim(),p_visitor_id:visitorId,p_vibe:normalizedVibe,
+    p_place_name:resolvedName,p_place_address:resolvedAddress,
+    p_latitude:validUserLat,p_longitude:validUserLng,
+    p_place_latitude:placeLat,p_place_longitude:placeLng
   },req);
   const s=Array.isArray(d)?d[0]||{}:d||{};
-  return res.status(200).json({ok:true,alreadyCheckedIn:Boolean(s.already_checked_in),updatedVibe:Boolean(s.updated_vibe),placeId:placeId.trim(),vibe,recordedAt:new Date().toISOString(),...live(await rpc("vibe_live_checkins",{p_place_id:placeId.trim()},req))});
+  return res.status(200).json({ok:true,alreadyCheckedIn:Boolean(s.already_checked_in),updatedVibe:Boolean(s.updated_vibe),placeId:placeId.trim(),vibe:normalizedVibe,recordedAt:new Date().toISOString(),...live(await rpc("vibe_live_checkins",{p_place_id:placeId.trim()},req))});
  }catch(e){console.error("Vibe check-in error:",e);return res.status(500).json({error:"Unable to record vibe right now."})}
 }
