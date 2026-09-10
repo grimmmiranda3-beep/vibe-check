@@ -98,7 +98,7 @@ export default async function handler(req, res) {
   const rawQuery = String(req.query.query || req.query.q || "").trim();
   if (!rawQuery) return res.status(400).json({ error: "Please provide a city, ZIP code, or place search." });
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Google Places API key is not configured." });
+  if (!apiKey) return res.status(500).json({ error: "Place search is temporarily unavailable. Please try again later." });
   const normalized = rawQuery.replace(/\s*,\s*/g, ", ");
   const searchType = getSearchType(rawQuery);
   const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
@@ -131,7 +131,6 @@ export default async function handler(req, res) {
     let googlePlaces = [];
     let lastError = null;
     if (cityDiscovery) {
-      // Three broad categories are enough for the city landing experience and avoid burning five Places searches per query.
       const categoryQueries = [`popular restaurants in ${normalized}`, `coffee shops in ${normalized}`, `bars and nightlife in ${normalized}`];
       const results = await Promise.all(categoryQueries.map(q => searchGoogle(q, 6).catch(error => { lastError = error; return []; })));
       const seen = new Set();
@@ -151,8 +150,8 @@ export default async function handler(req, res) {
       }
     }
     if (!googlePlaces.length && lastError) {
-      const temporary = /quota exceeded|requests from referer|rate limit/i.test(lastError.message || "");
-      return res.status(temporary ? 503 : 502).json({ error: temporary ? "Place search is temporarily unavailable. Please try again shortly." : lastError.message });
+      const temporary = /quota exceeded|requests from referer|rate limit|resource exhausted|unavailable|timeout/i.test(lastError.message || "");
+      return res.status(temporary ? 503 : 502).json({ error: "We couldn't complete that place search right now. Please try again." });
     }
     const places = await Promise.all(googlePlaces.map(async place => {
       const firstPhoto = place.photos?.[0], openingHours = place.currentOpeningHours || {};
@@ -162,6 +161,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ places, count: places.length, cityDiscovery, searchType });
   } catch (error) {
     console.error("Google Places search error:", error);
-    return res.status(500).json({ error: "Something went wrong while searching for places." });
+    return res.status(500).json({ error: "Something went wrong while searching for places. Please try again." });
   }
 }
