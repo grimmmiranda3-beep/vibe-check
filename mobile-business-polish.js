@@ -28,7 +28,7 @@ function init(){
  .business .barbox{border-radius:20px;padding:17px}
  .business .bars{height:150px;gap:8px}
  #mobileBusinessBar{position:fixed;left:0;right:0;bottom:0;z-index:100;display:flex;align-items:stretch;gap:2px;padding:8px 6px calc(8px + env(safe-area-inset-bottom));min-height:108px;background:rgba(255,255,255,.98);border:0;border-top:1px solid #e8e0ee;border-radius:20px 20px 0 0;box-shadow:0 -8px 24px rgba(35,20,50,.12);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
- #mobileBusinessBar button{flex:1;min-width:0;border:0;border-radius:14px;background:transparent;padding:8px 3px;font-size:12px;line-height:1.15;font-weight:850;color:#5f5963;white-space:nowrap}
+ #mobileBusinessBar button{flex:1;min-width:0;border:0;border-radius:14px;background:transparent;padding:8px 3px;font-size:12px;line-height:1.15;font-weight:850;color:#5f5963;white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
  #mobileBusinessBar button.active{background:#f2eaff;color:#6d28d9}
  #mobileBusinessBar .biz-icon{font-size:20px;line-height:1;display:block;margin-bottom:4px}
  #mobileBusinessBar #mBusiness{font-size:11px}
@@ -54,7 +54,7 @@ function init(){
 @media(min-width:851px){#mobileBusinessBar,#mobileBusinessCta,#mobileBusinessBenefits,.vibely-profile-panel{display:none!important}}
 `;
  document.head.appendChild(style);
- const bar=document.createElement('div');bar.id='mobileBusinessBar';bar.innerHTML='<button id="mExplore" class="active"><span class="biz-icon">📍</span>Explore</button><button id="mTrending"><span class="biz-icon">🔥</span>Trending</button><button id="mBusiness"><span class="biz-icon">🏪</span>For Businesses</button><button id="mProfile"><span class="biz-icon">●</span>Profile</button>';document.body.appendChild(bar);
+ const bar=document.createElement('div');bar.id='mobileBusinessBar';bar.innerHTML='<button id="mExplore" type="button" class="active"><span class="biz-icon">📍</span>Explore</button><button id="mTrending" type="button"><span class="biz-icon">🔥</span>Trending</button><button id="mBusiness" type="button"><span class="biz-icon">🏪</span>For Businesses</button><button id="mProfile" type="button"><span class="biz-icon">●</span>Profile</button>';document.body.appendChild(bar);
  const section=document.getElementById('business');
  if(section){
   const cta=document.createElement('button');cta.id='mobileBusinessCta';cta.textContent='🏪  I own this business  →';section.querySelector('.barbox')?.before(cta);
@@ -72,9 +72,7 @@ function init(){
  function explore(){section?.classList.remove('show');document.getElementById('explore')?.style.removeProperty('display');document.getElementById('exploreContent')?.style.removeProperty('display');setActive('mExplore');window.scrollTo({top:0,behavior:'smooth'});}
  document.getElementById('mBusiness').onclick=business;
  document.getElementById('mExplore').onclick=explore;
- // Trending has its own full-page feed at /feed.html. The previous
- // /trending.html target did not exist, so Vercel fell back to Explore.
- document.getElementById('mTrending').onclick=()=>{window.location.href='/feed.html'};
+ document.getElementById('mTrending').onclick=function(){ window.location.assign('/feed.html'); };
  document.getElementById('mProfile').onclick=()=>{window.location.href='/profile.html'};
  document.getElementById('businessBtn')?.addEventListener('click',business);
  document.getElementById('exploreBtn')?.addEventListener('click',explore);
