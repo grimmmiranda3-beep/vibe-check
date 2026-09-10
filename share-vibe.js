@@ -118,27 +118,52 @@
     body.appendChild(actions);
   }
 
-  // Shared links use /?place=Restaurant%20Name. When someone opens one,
-  // automatically run the existing Vibe Check search instead of leaving the
-  // visitor on the generic home screen.
+  // Shared links use /?place=Restaurant%20Name.
+  // Wait for the main app's search handler to be ready. Mobile Safari can
+  // render the input/button before the app has attached its click listener.
   function openSharedPlace() {
     const place = new URLSearchParams(window.location.search).get('place');
-    if (!place) return;
+    if (!place || window.__vibelySharedSearchStarted) return;
+    window.__vibelySharedSearchStarted = true;
 
     let attempts = 0;
-    const timer = setInterval(() => {
+    const maxAttempts = 18;
+
+    const run = () => {
       attempts += 1;
       const input = document.getElementById('search');
       const button = document.getElementById('searchBtn');
-      if (input && button) {
-        clearInterval(timer);
-        input.value = place;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        button.click();
+      const places = document.getElementById('places');
+      const resultCount = document.getElementById('resultCount');
+      if (!input || !button) {
+        if (attempts < maxAttempts) setTimeout(run, 300);
         return;
       }
-      if (attempts >= 40) clearInterval(timer);
-    }, 150);
+
+      input.value = place;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      // The delay gives the normal page scripts time to finish attaching
+      // the search listener before the shared-link click fires.
+      setTimeout(() => {
+        button.click();
+        if (typeof window.track === 'function') window.track('shared_place_opened', { placeName: place });
+      }, 150);
+
+      // If the first click raced startup, retry. Stop as soon as the normal
+      // search UI shows loading, a place, an error, or a changed result count.
+      setTimeout(() => {
+        const hasActivity = places && (
+          places.querySelector('.loading, .place, .error') ||
+          !/Search to find places/i.test(resultCount?.textContent || '')
+        );
+        if (!hasActivity && attempts < maxAttempts) run();
+      }, 850);
+    };
+
+    // Prevents a race between this enhancement and the main app on iPhone.
+    setTimeout(run, 700);
   }
 
   window.VibelyShare = { share, copyLink };
