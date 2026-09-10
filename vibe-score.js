@@ -11,7 +11,8 @@ const COMMUNITY_VIBE_VALUES = {
 
 function communityConfidence(total) {
   const count = Math.max(0, Number(total) || 0);
-  if (count < 5) return 0;
+  if (count < 1) return 0;
+  if (count < 5) return 0.05;
   if (count < 20) return 0.10;
   if (count < 50) return 0.20;
   return 0.30;
@@ -92,8 +93,8 @@ function calculateVibeScore(place, community = null) {
   const baseline = Number((5 + weighted / 20).toFixed(1));
   const signal = calculateCommunitySignal(community);
 
-  // Community activity is intentionally gated. Fewer than 5 live check-ins
-  // cannot move the score, 5–19 have light influence, 20–49 moderate influence,
+  // Community activity now has a small influence from the very first check-in.
+  // 1–4 have light influence, 5–19 moderate influence, 20–49 stronger influence,
   // and 50+ provide the strongest community signal (still capped at 30%).
   if (!signal.available || signal.confidence === 0) return baseline;
 
