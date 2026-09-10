@@ -6,7 +6,8 @@ const COMMUNITY_VIBE_VALUES = {
   "😊": 8.9, // Good
   "🔥": 9.5, // Lively
   "😌": 8.6, // Relaxed
-  "🥳": 9.3  // Fun
+  "🥳": 9.3, // Fun
+  "😕": 4.5  // Not my vibe
 };
 
 function communityConfidence(total) {
