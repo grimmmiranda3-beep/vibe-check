@@ -72,7 +72,9 @@ function init(){
  function explore(){section?.classList.remove('show');document.getElementById('explore')?.style.removeProperty('display');document.getElementById('exploreContent')?.style.removeProperty('display');setActive('mExplore');window.scrollTo({top:0,behavior:'smooth'});}
  document.getElementById('mBusiness').onclick=business;
  document.getElementById('mExplore').onclick=explore;
- document.getElementById('mTrending').onclick=()=>{window.location.href='/trending.html'};
+ // Trending has its own full-page feed at /feed.html. The previous
+ // /trending.html target did not exist, so Vercel fell back to Explore.
+ document.getElementById('mTrending').onclick=()=>{window.location.href='/feed.html'};
  document.getElementById('mProfile').onclick=()=>{window.location.href='/profile.html'};
  document.getElementById('businessBtn')?.addEventListener('click',business);
  document.getElementById('exploreBtn')?.addEventListener('click',explore);
