@@ -28,12 +28,19 @@ jobs:
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-          tag = '<script src="/vibely-launch.js"></script>'
-          if tag not in s:
-              marker = '</body>'
-              if marker not in s:
-                  raise SystemExit('Could not find </body> in index.html')
-              s = s.replace(marker, tag + '\n' + marker, 1)
+          tags = [
+              '<script src="/vibely-launch.js"></script>',
+              '<script src="/ask-vibely-ui.js"></script>'
+          ]
+          marker = '</body>'
+          if marker not in s:
+              raise SystemExit('Could not find </body> in index.html')
+          changed = False
+          for tag in tags:
+              if tag not in s:
+                  s = s.replace(marker, tag + '\n' + marker, 1)
+                  changed = True
+          if changed:
               p.write_text(s, encoding='utf-8')
               print('Launch modules attached.')
           else:
@@ -47,6 +54,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes needed."
           else
-            git commit -m "fix: reconnect Vibely launch modules"
+            git commit -m "fix: ensure Ask Vibely loads directly"
             git push
           fi
