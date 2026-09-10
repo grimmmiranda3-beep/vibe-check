@@ -6,7 +6,8 @@
     ['😊', 'Good'],
     ['🔥', 'Lively'],
     ['😌', 'Chill'],
-    ['🥳', 'Fun']
+    ['🥳', 'Fun'],
+    ['😕', 'Not my vibe']
   ];
 
   const read = () => {
