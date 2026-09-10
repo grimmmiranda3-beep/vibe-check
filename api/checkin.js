@@ -33,12 +33,12 @@ export default async function handler(req,res){
   if(!ALLOWED.includes(vibe))return res.status(400).json({error:"A valid vibe is required."});
   let visitorId=getCookie(req);if(!visitorId){visitorId=visitor();setCookie(res,visitorId)}
 
-  // latitude/longitude are the user's device coordinates. They must never be
-  // replaced with the business coordinates: Nearby is based on where the
-  // person actually checked in, not the city/place they searched.
+  // These coordinates are the user's device coordinates. Nearby is never based
+  // on the searched business or the business's coordinates.
   const userLat=Number(latitude),userLng=Number(longitude);
   const validUserLat=Number.isFinite(userLat)&&Math.abs(userLat)<=90?userLat:null;
   const validUserLng=Number.isFinite(userLng)&&Math.abs(userLng)<=180?userLng:null;
+  if(validUserLat===null||validUserLng===null)return res.status(400).json({error:"Location is required to check in so Nearby stays accurate."});
 
   const place=await resolvePlace(placeId.trim());
   const resolvedName=typeof placeName==="string"&&placeName.trim()?placeName.slice(0,300):(place?.name||null);
