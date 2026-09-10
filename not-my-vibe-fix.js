@@ -1,8 +1,9 @@
-// Vibe Check — reliable "Not my vibe" check-in option.
+// Vibe Check — safe "Not my vibe" option cleanup.
+// This script intentionally does NOT wrap openModal().
+// The core page already owns modal opening; this helper only removes duplicate
+// 😕 options and preserves the core option's click handler.
 (function(){
   'use strict';
-  const EMOJI='😕';
-  const LABEL='Not my vibe';
 
   function addStyles(){
     if(document.getElementById('not-my-vibe-fix-styles')) return;
@@ -15,41 +16,28 @@
     document.head.appendChild(style);
   }
 
-  function ensureOption(){
+  function cleanup(){
     document.querySelectorAll('.emoji-row').forEach(row=>{
-      if(row.querySelector('.not-my-vibe-fix')) return;
-      const button=document.createElement('button');
-      button.type='button';
-      button.className='emoji not-my-vibe-fix';
-      button.textContent=EMOJI;
-      button.title=LABEL;
-      button.setAttribute('aria-label',LABEL);
-      button.addEventListener('click',function(){
-        if(typeof window.selectEmoji==='function') window.selectEmoji(EMOJI,button);
-        else {
-          row.querySelectorAll('.emoji').forEach(x=>x.classList.remove('selected'));
-          button.classList.add('selected');
-        }
-      });
-      row.appendChild(button);
+      const buttons=[...row.querySelectorAll('.emoji')];
+      const matches=buttons.filter(btn=>btn.textContent.trim()==='😕');
+      if(matches.length>1){
+        // Keep the first/core button so its original selectEmoji listener survives.
+        matches.slice(1).forEach(btn=>btn.remove());
+      }
+      const option=[...row.querySelectorAll('.emoji')].find(btn=>btn.textContent.trim()==='😕');
+      if(option){
+        option.classList.add('not-my-vibe-fix');
+        option.title='Not my vibe';
+        option.setAttribute('aria-label','Not my vibe');
+      }
     });
   }
 
   function init(){
     addStyles();
-    ensureOption();
+    cleanup();
     const modal=document.getElementById('modal');
-    if(modal) new MutationObserver(ensureOption).observe(modal,{childList:true,subtree:true});
-    if(typeof window.openModal==='function' && !window.__vcNotMyVibeOpenWrapped){
-      const original=window.openModal;
-      window.openModal=async function(){
-        const result=await original.apply(this,arguments);
-        setTimeout(ensureOption,0);
-        setTimeout(ensureOption,100);
-        return result;
-      };
-      window.__vcNotMyVibeOpenWrapped=true;
-    }
+    if(modal) new MutationObserver(cleanup).observe(modal,{childList:true,subtree:true});
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
