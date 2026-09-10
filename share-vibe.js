@@ -16,7 +16,7 @@
     const scoreText = Number.isFinite(score) ? ` ${score.toFixed(1)}/10` : '';
     const emoji = place.emoji || '✨';
     const url = appShareUrl(name);
-    const text = `${emoji} The vibe at ${name} is${scoreText} right now. Check it out on Vibe Check. ${url}`;
+    const text = `${emoji} The vibe at ${name} is${scoreText} right now. Check it out on Vibe Check.`;
     return { name, score, emoji, url, text };
   }
 
@@ -50,6 +50,20 @@
     const { name, score, emoji, url, text } = buildShareContent(place);
 
     if (typeof window.track === 'function') window.track('vibe_share_opened', { placeName: name, method: 'native-or-clipboard' });
+
+    // The native iOS wrapper does not expose navigator.share consistently.
+    // Use a WebKit bridge so Share Vibe always opens the real iOS share sheet
+    // instead of silently copying the link and sending the user to Google.
+    const iosBridge = window.webkit?.messageHandlers?.shareVibe;
+    if (iosBridge) {
+      try {
+        iosBridge.postMessage({ title: `Vibe Check — ${name}`, text, url });
+        if (typeof window.track === 'function') window.track('vibe_shared', { placeName: name, method: 'ios-native' });
+        return { ok: true, method: 'ios-native' };
+      } catch (_) {
+        // Fall through to the browser share/copy behavior.
+      }
+    }
 
     if (navigator.share) {
       try {
@@ -144,15 +158,11 @@
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
 
-      // The delay gives the normal page scripts time to finish attaching
-      // the search listener before the shared-link click fires.
       setTimeout(() => {
         button.click();
         if (typeof window.track === 'function') window.track('shared_place_opened', { placeName: place });
       }, 150);
 
-      // If the first click raced startup, retry. Stop as soon as the normal
-      // search UI shows loading, a place, an error, or a changed result count.
       setTimeout(() => {
         const hasActivity = places && (
           places.querySelector('.loading, .place, .error') ||
@@ -162,7 +172,6 @@
       }, 850);
     };
 
-    // Prevents a race between this enhancement and the main app on iPhone.
     setTimeout(run, 700);
   }
 
