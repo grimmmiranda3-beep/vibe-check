@@ -118,6 +118,29 @@
     body.appendChild(actions);
   }
 
+  // Shared links use /?place=Restaurant%20Name. When someone opens one,
+  // automatically run the existing Vibe Check search instead of leaving the
+  // visitor on the generic home screen.
+  function openSharedPlace() {
+    const place = new URLSearchParams(window.location.search).get('place');
+    if (!place) return;
+
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      const input = document.getElementById('search');
+      const button = document.getElementById('searchBtn');
+      if (input && button) {
+        clearInterval(timer);
+        input.value = place;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        button.click();
+        return;
+      }
+      if (attempts >= 40) clearInterval(timer);
+    }, 150);
+  }
+
   window.VibelyShare = { share, copyLink };
 
   const observer = new MutationObserver(() => {
@@ -129,6 +152,7 @@
     observer.observe(document.body, { childList: true, subtree: true });
     addCardButtons();
     addModalButton();
+    openSharedPlace();
     if (!document.getElementById('vibely-trending-script')) {
       const script = document.createElement('script');
       script.id = 'vibely-trending-script';
