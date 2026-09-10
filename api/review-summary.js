@@ -1,13 +1,23 @@
-export default async function handler(req, res) {
-  const placeId = String(req.query.placeId || "").trim();
+function noStore(res){
+  res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma","no-cache");
+  res.setHeader("Expires","0");
+}
 
-  if (!placeId) {
-    return res.status(400).json({ error: "Please provide a place ID." });
+export default async function handler(req, res) {
+  noStore(res);
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const placeId = String(req.query?.placeId || "").trim();
+  if (!placeId || placeId.length > 500) {
+    return res.status(400).json({ error: "Please provide a valid place ID." });
   }
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "Google Places API key is not configured." });
+    return res.status(503).json({ error: "Review summary is temporarily unavailable." });
   }
 
   try {
@@ -20,14 +30,14 @@ export default async function handler(req, res) {
       }
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error("Google review summary error:", response.status, data);
-      return res.status(response.status).json({ error: data.error?.message || "Review summary unavailable." });
+      const temporary = response.status === 429 || response.status >= 500;
+      return res.status(temporary ? 503 : 502).json({ error: "Review summary is temporarily unavailable." });
     }
 
     const summary = data.reviewSummary || null;
-
     return res.status(200).json({
       available: Boolean(summary?.text?.text),
       summary: summary?.text?.text || "",
@@ -37,6 +47,6 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("Review summary request failed:", error);
-    return res.status(500).json({ error: "Something went wrong while loading the review summary." });
+    return res.status(503).json({ error: "Review summary is temporarily unavailable." });
   }
 }
