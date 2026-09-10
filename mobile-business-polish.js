@@ -1,4 +1,4 @@
-// Vibely Check — mobile navigation polish
+// Vibe Check — mobile navigation polish
 (function(){'use strict';
 function init(){
  if(document.getElementById('vibelyMobilePolish')) return;
@@ -41,10 +41,15 @@ function init(){
  .vibely-profile-panel p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
  .vibely-profile-actions{display:grid;gap:9px;margin-top:15px}
  .vibely-profile-actions button{border:1px solid var(--line);background:#fff;border-radius:13px;padding:12px;text-align:left;font-weight:800;cursor:pointer}
- /* The floating Ask Vibely control must live above the fixed mobile navigation. */
  .ask-launch{bottom:calc(116px + env(safe-area-inset-bottom)) !important;right:14px;max-width:calc(100vw - 28px)}
  .ask-panel{bottom:calc(174px + env(safe-area-inset-bottom)) !important;right:14px;width:calc(100vw - 28px);max-height:calc(100vh - 196px - env(safe-area-inset-bottom))}
  body{scroll-padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+}
+@media(max-width:380px){
+ .hero h1{font-size:32px}
+ .emoji{font-size:21px}
+ .emoji-row{gap:4px}
+ .small-btn{font-size:13px}
 }
 @media(min-width:851px){#mobileBusinessBar,#mobileBusinessCta,#mobileBusinessBenefits,.vibely-profile-panel{display:none!important}}
 `;
@@ -67,7 +72,7 @@ function init(){
  function explore(){section?.classList.remove('show');document.getElementById('explore')?.style.removeProperty('display');document.getElementById('exploreContent')?.style.removeProperty('display');setActive('mExplore');window.scrollTo({top:0,behavior:'smooth'});}
  document.getElementById('mBusiness').onclick=business;
  document.getElementById('mExplore').onclick=explore;
- document.getElementById('mTrending').onclick=()=>{explore();setTimeout(()=>{document.getElementById('vibelyTrending')?.scrollIntoView({behavior:'smooth',block:'start'});},50)};
+ document.getElementById('mTrending').onclick=()=>{window.location.href='/trending.html'};
  document.getElementById('mProfile').onclick=()=>{window.location.href='/profile.html'};
  document.getElementById('businessBtn')?.addEventListener('click',business);
  document.getElementById('exploreBtn')?.addEventListener('click',explore);
