@@ -23,6 +23,8 @@
       .vibe-onboard-step span{display:block;color:#77727b;font-size:12px;line-height:1.4}
       .vibe-onboard-cta{width:100%;border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff;font-weight:900;font-size:15px;cursor:pointer;box-shadow:0 10px 25px #7c3aed28}
       .vibe-onboard-note{text-align:center;color:#77727b;font-size:11px;margin-top:10px}
+      /* Ask Vibely is loaded after this module, so hide it by state rather than by timing. */
+      body:has(#vibeOnboarding) .ask-launch{display:none!important}
       @media(max-width:560px){#vibeOnboarding{padding:12px}.vibe-onboard-card{padding:22px;border-radius:24px}.vibe-onboard-card h2{font-size:29px}.vibe-onboard-card>p{font-size:15px}.vibe-onboard-steps{grid-template-columns:1fr;gap:8px;margin:19px 0}.vibe-onboard-step{display:grid;grid-template-columns:35px 1fr;column-gap:9px;padding:11px 12px}.vibe-onboard-icon{grid-row:1 / span 2;margin:2px 0 0}.vibe-onboard-step b{margin:0}.vibe-onboard-step span{font-size:11px}}
     `;
     document.head.appendChild(style);
@@ -48,18 +50,12 @@
         <div class="vibe-onboard-note">No account required · Anonymous by design</div>
       </div>`;
     document.body.appendChild(overlay);
-
-    // Keep the floating Ask Vibely launcher from covering the onboarding CTA.
-    const askLauncher=document.getElementById('askVibelyLauncher');
-    if(askLauncher) askLauncher.style.display='none';
-
     document.body.style.overflow='hidden';
 
     function close(){
       localStorage.setItem(KEY,'seen');
       overlay.remove();
       document.body.style.overflow='';
-      if(askLauncher) askLauncher.style.display='';
       const search=document.getElementById('search');
       if(search) search.focus({preventScroll:true});
     }
