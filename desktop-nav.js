@@ -1,7 +1,20 @@
-// Vibely Check — shared desktop navigation.
+// Vibely Check — shared navigation and Ask Vibely loader.
 (function(){
   'use strict';
+
+  function loadAskVibely(){
+    if(document.getElementById('askVibelyLauncher')) return;
+    if(document.querySelector('script[data-ask-vibely-loader="1"]')) return;
+    const script=document.createElement('script');
+    script.src='/ask-vibely-ui.js?v=desktop-mobile-safe';
+    script.async=false;
+    script.dataset.askVibelyLoader='1';
+    document.head.appendChild(script);
+  }
+
   function init(){
+    loadAskVibely();
+
     const nav=document.querySelector('.nav');
     if(!nav || nav.dataset.sharedDesktopNav==='1') return;
     nav.dataset.sharedDesktopNav='1';
@@ -38,20 +51,10 @@
     profile.setAttribute('aria-label','My Profile');
     profile.addEventListener('click',()=>{window.location.href='/profile.html';});
 
-    // Keep the same destination order on desktop as mobile: Explore, Trending, Businesses, Profile.
     nav.appendChild(trending);
-    nav.appendChild(existingBusiness || document.createElement('span'));
-    if(existingBusiness && existingBusiness.parentNode===nav) nav.appendChild(profile);
-    else nav.appendChild(profile);
-
-    const updateActive=()=>{
-      const businessVisible=document.getElementById('business')?.classList.contains('show');
-      const trendingPanel=document.getElementById('vibelyTrending');
-      const nearTrending=trendingPanel && Math.abs(trendingPanel.getBoundingClientRect().top)<160;
-      if(businessVisible){trending.classList.remove('active');profile.classList.remove('active');}
-      else if(nearTrending){trending.classList.add('active');}
-    };
-    window.addEventListener('scroll',updateActive,{passive:true});
+    if(existingBusiness) nav.appendChild(existingBusiness);
+    nav.appendChild(profile);
   }
+
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
