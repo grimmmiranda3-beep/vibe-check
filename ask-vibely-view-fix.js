@@ -37,3 +37,4 @@ function run(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
 })();
+// Trigger the launch-module connection workflow after UI wiring changes.
