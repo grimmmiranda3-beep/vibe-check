@@ -1,7 +1,5 @@
-// Vibe Check — safe "Not my vibe" option cleanup.
-// This script intentionally does NOT wrap openModal().
-// The core page already owns modal opening; this helper only removes duplicate
-// 😕 options and preserves the core option's click handler.
+// Vibe Check — safe check-in helpers.
+// Keeps exactly one 😕 option and provides a defensive View Vibe click path.
 (function(){
   'use strict';
 
@@ -18,12 +16,8 @@
 
   function cleanup(){
     document.querySelectorAll('.emoji-row').forEach(row=>{
-      const buttons=[...row.querySelectorAll('.emoji')];
-      const matches=buttons.filter(btn=>btn.textContent.trim()==='😕');
-      if(matches.length>1){
-        // Keep the first/core button so its original selectEmoji listener survives.
-        matches.slice(1).forEach(btn=>btn.remove());
-      }
+      const matches=[...row.querySelectorAll('.emoji')].filter(btn=>btn.textContent.trim()==='😕');
+      if(matches.length>1) matches.slice(1).forEach(btn=>btn.remove());
       const option=[...row.querySelectorAll('.emoji')].find(btn=>btn.textContent.trim()==='😕');
       if(option){
         option.classList.add('not-my-vibe-fix');
@@ -33,9 +27,36 @@
     });
   }
 
+  // The recent vibe-option helper must never interfere with the existing View Vibe action.
+  // If an older inline handler is unavailable, route the click directly to openModal using
+  // the card's current DOM position. Capture-phase handling prevents duplicate opens.
+  function bindViewVibeGuard(){
+    if(window.__vcViewVibeGuardBound) return;
+    document.addEventListener('click',function(event){
+      const button=event.target.closest?.('.place-actions .small-btn');
+      if(!button) return;
+      const actions=button.parentElement;
+      if(!actions || actions.querySelector('.checkin-btn')===button) return;
+      const buttons=[...actions.querySelectorAll('.small-btn')];
+      if(buttons.indexOf(button)!==0) return;
+      if(typeof window.openModal!=='function') return;
+      const card=button.closest('.place');
+      if(!card) return;
+      const cards=[...document.querySelectorAll('.place')];
+      const index=cards.indexOf(card);
+      if(index<0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.openModal(index);
+    },true);
+    window.__vcViewVibeGuardBound=true;
+  }
+
   function init(){
     addStyles();
     cleanup();
+    bindViewVibeGuard();
     const modal=document.getElementById('modal');
     if(modal) new MutationObserver(cleanup).observe(modal,{childList:true,subtree:true});
   }
