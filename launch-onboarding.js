@@ -48,12 +48,18 @@
         <div class="vibe-onboard-note">No account required · Anonymous by design</div>
       </div>`;
     document.body.appendChild(overlay);
+
+    // Keep the floating Ask Vibely launcher from covering the onboarding CTA.
+    const askLauncher=document.getElementById('askVibelyLauncher');
+    if(askLauncher) askLauncher.style.display='none';
+
     document.body.style.overflow='hidden';
 
     function close(){
       localStorage.setItem(KEY,'seen');
       overlay.remove();
       document.body.style.overflow='';
+      if(askLauncher) askLauncher.style.display='';
       const search=document.getElementById('search');
       if(search) search.focus({preventScroll:true});
     }
