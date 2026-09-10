@@ -14,6 +14,7 @@
       .trend-card.wow-hot{position:relative;overflow:hidden}.trend-card.wow-hot:after{content:'LIVE';position:absolute;right:12px;top:12px;font-size:9px;font-weight:950;letter-spacing:.08em;color:#16a34a;background:#ecfdf3;border-radius:999px;padding:5px 7px}
       .trend-pulse{display:flex;align-items:center;gap:5px}.wow-bar{height:5px;border-radius:99px;background:#eeeaf0;overflow:hidden;margin-top:9px}.wow-bar span{display:block;height:100%;width:var(--w);background:linear-gradient(90deg,#7c3aed,#ec4899);border-radius:99px}
       .wow-note{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.45}.wow-empty{padding:8px 11px;border-radius:16px;background:#faf8fb;border:1px dashed #ddd2e7;color:var(--muted);font-size:12px;line-height:1.4}
+      .wow-empty-cta{border:0;background:#17151a;color:#fff;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap}.wow-empty-cta:hover{opacity:.9}
       @media(max-width:850px){.wow-strip{margin-top:10px;padding:12px}.wow-title{display:none}}
     `;document.head.appendChild(s);
   }
@@ -27,16 +28,24 @@
   }
   function buildStrip(){
     const counts=readRadar(),ranked=Object.entries(counts).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
-    if(!ranked.length)return '<div class="wow-strip"><span class="wow-title">Vibe radar</span><span class="wow-empty">No live pulse yet — someone has to set the vibe.</span></div>';
+    if(!ranked.length)return '<div class="wow-strip"><span class="wow-title">Vibe radar</span><span class="wow-empty">No live pulse yet.</span><button class="wow-empty-cta" data-start-vibe>Set the first vibe</button></div>';
     const top=ranked[0][0];
     return '<div class="wow-strip"><span class="wow-title">Vibe radar</span>'+ranked.map(([v,n])=>`<button class="wow-chip ${v===top?'hot':''}" data-vibe-filter="${v}">${v} ${LABELS[v]} <b>${n}</b></button>`).join('')+'</div>';
   }
-  function decorate(){
-    styles();const p=panel();if(!p)return;const cards=[...p.querySelectorAll('.trend-card')];if(!cards.length)return;
-    cards.forEach((card,i)=>{if(i===0)card.classList.add('wow-hot');const pulse=card.querySelector('.trend-pulse');const m=pulse?.textContent.match(/(\d+)/);const n=m?Number(m[1]):0;if(pulse&&!card.querySelector('.wow-bar'))pulse.insertAdjacentHTML('afterend',`<div class="wow-bar"><span style="--w:${Math.min(100,30+n*20)}%"></span></div>`)})
-    let strip=p.querySelector('.wow-strip');if(!strip){const wrap=document.createElement('div');wrap.innerHTML=buildStrip();strip=wrap.firstElementChild;p.appendChild(strip);strip.querySelectorAll('[data-vibe-filter]').forEach(btn=>btn.addEventListener('click',()=>{
+  function wireStrip(p,strip){
+    strip.querySelectorAll('[data-vibe-filter]').forEach(btn=>btn.addEventListener('click',()=>{
       const vibe=btn.dataset.vibeFilter;const target=[...p.querySelectorAll('.trend-card')].find(card=>[...card.querySelectorAll('.trend-chip')].some(ch=>ch.textContent.trim().startsWith(vibe+' ')));target?.scrollIntoView({behavior:'smooth',block:'center'});target?.classList.add('wow-hot');
-    }))}
+    }));
+    const start=strip.querySelector('[data-start-vibe]');
+    if(start)start.addEventListener('click',()=>{const first=p.querySelector('.trend-card');first?.click()});
+  }
+  function decorate(){
+    styles();const p=panel();if(!p)return;
+    const cards=[...p.querySelectorAll('.trend-card')];
+    cards.forEach((card,i)=>{if(i===0)card.classList.add('wow-hot');const pulse=card.querySelector('.trend-pulse');const m=pulse?.textContent.match(/(\d+)/);const n=m?Number(m[1]):0;if(pulse&&!card.querySelector('.wow-bar'))pulse.insertAdjacentHTML('afterend',`<div class="wow-bar"><span style="--w:${Math.min(100,30+n*20)}%"></span></div>`)})
+    let strip=p.querySelector('.wow-strip');
+    if(!strip){const wrap=document.createElement('div');wrap.innerHTML=buildStrip();strip=wrap.firstElementChild;p.appendChild(strip);wireStrip(p,strip)}
+    else if(!cards.length && !strip.querySelector('[data-start-vibe]')){strip.outerHTML=buildStrip();wireStrip(p,p.querySelector('.wow-strip'))}
     if(!p.querySelector('.wow-note')){const note=document.createElement('div');note.className='wow-note';note.innerHTML='<span class="wow-kicker"><span class="wow-dot"></span>Live pulse</span> Activity comes from anonymous check-ins from the last 3 hours. Vibe Check is about what is happening now — not old review history.';p.appendChild(note)}
   }
   function watch(){if(observer)return;const host=document.getElementById('exploreContent');if(!host)return;observer=new MutationObserver(()=>{if(panel())setTimeout(decorate,80)});observer.observe(host,{childList:true,subtree:true})}
