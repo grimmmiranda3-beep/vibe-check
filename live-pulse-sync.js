@@ -3,8 +3,8 @@
 // live Nearby query has coordinates to work with.
 (function(){
   'use strict';
-  if(window.__vcLivePulseSyncV2) return;
-  window.__vcLivePulseSyncV2=true;
+  if(window.__vcLivePulseSyncV3) return;
+  window.__vcLivePulseSyncV3=true;
 
   const getPosition=()=>new Promise(resolve=>{
     if(!navigator.geolocation) return resolve(null);
@@ -20,6 +20,17 @@
     const btn=document.getElementById('vcLocate');
     if(!host||!btn) return;
     if(btn.textContent.includes('Refresh nearby')) btn.click();
+  }
+
+  // The original page already includes 😕 in its six core vibes. Older
+  // polish code also injected a second "Not my vibe" button, which could
+  // create duplicate choices and inconsistent payloads. Keep one copy.
+  function dedupeNotMyVibe(){
+    document.querySelectorAll('.emoji-row').forEach(row=>{
+      const buttons=[...row.querySelectorAll('.emoji')];
+      const notMy=buttons.filter(b=>b.textContent.trim()==='😕');
+      if(notMy.length>1) notMy.slice(1).forEach(b=>b.remove());
+    });
   }
 
   async function prepareCheckin(input,init){
@@ -41,7 +52,7 @@
   }
 
   function watchFetch(){
-    if(window.__vcLivePulseFetchPatchedV2) return;
+    if(window.__vcLivePulseFetchPatchedV3) return;
     const original=window.fetch.bind(window);
     window.fetch=async function(input,init){
       const prepared=await prepareCheckin(input,init);
@@ -51,18 +62,19 @@
         const method=(prepared.init?.method||input?.method||'GET').toUpperCase();
         if(url.includes('/api/checkin')&&method==='POST'&&response.ok){
           const copy=response.clone();
-          copy.json().then(data=>{
-            if(data?.ok) setTimeout(refreshNearby,500);
-          }).catch(()=>{});
+          copy.json().then(data=>{if(data?.ok)setTimeout(refreshNearby,500)}).catch(()=>{});
         }
       }catch(e){}
       return response;
     };
-    window.__vcLivePulseFetchPatchedV2=true;
+    window.__vcLivePulseFetchPatchedV3=true;
   }
 
   function init(){
     watchFetch();
+    dedupeNotMyVibe();
+    const modal=document.getElementById('modal');
+    if(modal) new MutationObserver(dedupeNotMyVibe).observe(modal,{childList:true,subtree:true});
     window.addEventListener('vc:checkin-complete',()=>setTimeout(refreshNearby,500));
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
