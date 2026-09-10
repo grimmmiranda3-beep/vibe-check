@@ -1,5 +1,5 @@
 // Vibe Check — safe check-in helpers.
-// Keeps exactly one 😕 option and provides a defensive View Vibe click path.
+// Keeps exactly one 😕 option and adds a non-invasive fallback for View Vibe.
 (function(){
   'use strict';
 
@@ -27,36 +27,31 @@
     });
   }
 
-  // The recent vibe-option helper must never interfere with the existing View Vibe action.
-  // If an older inline handler is unavailable, route the click directly to openModal using
-  // the card's current DOM position. Capture-phase handling prevents duplicate opens.
-  function bindViewVibeGuard(){
-    if(window.__vcViewVibeGuardBound) return;
+  // Non-invasive fallback: let the original View Vibe handler run first.
+  // If it did not open the modal, open it from the clicked card after the event finishes.
+  function bindViewVibeFallback(){
+    if(window.__vcViewVibeFallbackBound) return;
     document.addEventListener('click',function(event){
       const button=event.target.closest?.('.place-actions .small-btn');
-      if(!button) return;
-      const actions=button.parentElement;
-      if(!actions || actions.querySelector('.checkin-btn')===button) return;
-      const buttons=[...actions.querySelectorAll('.small-btn')];
-      if(buttons.indexOf(button)!==0) return;
-      if(typeof window.openModal!=='function') return;
+      if(!button || button.textContent.trim()!=='View Vibe') return;
       const card=button.closest('.place');
       if(!card) return;
-      const cards=[...document.querySelectorAll('.place')];
-      const index=cards.indexOf(card);
-      if(index<0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.openModal(index);
-    },true);
-    window.__vcViewVibeGuardBound=true;
+      setTimeout(function(){
+        const modal=document.getElementById('modal');
+        if(modal?.classList.contains('show')) return;
+        if(typeof window.openModal!=='function') return;
+        const cards=[...document.querySelectorAll('.place')];
+        const index=cards.indexOf(card);
+        if(index>=0) window.openModal(index);
+      },0);
+    },false);
+    window.__vcViewVibeFallbackBound=true;
   }
 
   function init(){
     addStyles();
     cleanup();
-    bindViewVibeGuard();
+    bindViewVibeFallback();
     const modal=document.getElementById('modal');
     if(modal) new MutationObserver(cleanup).observe(modal,{childList:true,subtree:true});
   }
