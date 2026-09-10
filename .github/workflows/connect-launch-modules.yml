@@ -8,6 +8,9 @@ on:
       - 'trending.js'
       - 'business-interest.js'
       - 'vibely-launch.js'
+      - 'ask-vibely-ui.js'
+      - 'ask-vibely-view-fix.js'
+      - 'desktop-nav.js'
       - '.github/workflows/connect-launch-modules.yml'
   workflow_dispatch:
 
@@ -44,6 +47,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes needed."
           else
-            git commit -m "feat: connect launch modules"
+            git commit -m "fix: reconnect Vibely launch modules"
             git push
           fi
