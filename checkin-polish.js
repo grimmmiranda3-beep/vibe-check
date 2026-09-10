@@ -35,16 +35,12 @@
           let body=null;
           if(typeof init?.body==='string'){try{body=JSON.parse(init.body)}catch{}}
           if(body && typeof body==='object'){
-            // The Places search already returns exact coordinates. Attach them to the check-in
-            // so the nearby pulse can spatially match the check-in to the user's area.
             if((!Number.isFinite(Number(body.latitude))||!Number.isFinite(Number(body.longitude))) && body.placeId){
               const found=(Array.isArray(window.__vibePlaces)?window.__vibePlaces:[]).find(p=>p?.id===body.placeId);
               const lat=Number(found?.latitude),lng=Number(found?.longitude);
               if(Number.isFinite(lat)&&Math.abs(lat)<=90)body.latitude=lat;
               if(Number.isFinite(lng)&&Math.abs(lng)<=180)body.longitude=lng;
             }
-            // Optional sixth vibe is handled here without changing the core page's original
-            // saveVibe function: the UI sets this short-lived override before submitting.
             if(window.__vcSelectedVibeOverride && VIBES.includes(window.__vcSelectedVibeOverride)){
               body.vibe=window.__vcSelectedVibeOverride;
             }
@@ -75,19 +71,32 @@
   function hydrateLiveSignals(){document.querySelectorAll('.place').forEach(hydrateCard)}
   function refreshAfterCheckin(){document.querySelectorAll('.place').forEach(card=>{delete card.dataset.liveLoaded});hydrateLiveSignals();window.dispatchEvent(new CustomEvent('vc:checkin-complete'))}
 
-  function addNotMyVibeOption(){
-    const rows=document.querySelectorAll('.emoji-row');
-    rows.forEach(row=>{
-      if(row.querySelector('.not-my-vibe'))return;
-      const button=document.createElement('button');
-      button.type='button';button.className='emoji not-my-vibe';button.textContent='😕';button.title='Not my vibe';button.setAttribute('aria-label','Not my vibe');
-      button.addEventListener('click',()=>{
-        row.querySelectorAll('.emoji').forEach(x=>x.classList.remove('selected'));
-        button.classList.add('selected');
-        window.__vcSelectedVibeOverride='😕';
-      });
-      row.appendChild(button);
-      if(!row.parentElement.querySelector('.vibe-checkin-note')){const note=document.createElement('div');note.className='vibe-checkin-note';note.textContent='No stars. Just a feeling — your check-in stays anonymous.';row.parentElement.insertBefore(note,row.nextSibling)}
+  // The main page already renders the complete six-vibe list, including 😕 Not my vibe.
+  // Older polish code appended another 😕 button, and multiple enhancement passes could
+  // leave several copies in the modal. Normalize the row instead of adding another option.
+  function normalizeVibeOptions(){
+    document.querySelectorAll('.emoji-row').forEach(row=>{
+      const buttons=[...row.querySelectorAll('.emoji')];
+      const notMyVibe=buttons.filter(btn=>btn.textContent.trim()==='😕');
+      if(notMyVibe.length>1){
+        // Prefer the original/core button and remove any duplicate enhancement buttons.
+        const keep=notMyVibe.find(btn=>!btn.classList.contains('not-my-vibe'))||notMyVibe[0];
+        notMyVibe.forEach(btn=>{if(btn!==keep)btn.remove()});
+      }
+      const remaining=[...row.querySelectorAll('.emoji')];
+      if(!remaining.some(btn=>btn.textContent.trim()==='😕')){
+        const button=document.createElement('button');
+        button.type='button';button.className='emoji not-my-vibe';button.textContent='😕';button.title='Not my vibe';button.setAttribute('aria-label','Not my vibe');
+        button.addEventListener('click',()=>{
+          row.querySelectorAll('.emoji').forEach(x=>x.classList.remove('selected'));
+          button.classList.add('selected');
+          window.__vcSelectedVibeOverride='😕';
+        });
+        row.appendChild(button);
+      }
+      if(!row.parentElement.querySelector('.vibe-checkin-note')){
+        const note=document.createElement('div');note.className='vibe-checkin-note';note.textContent='No stars. Just a feeling — your check-in stays anonymous.';row.parentElement.insertBefore(note,row.nextSibling);
+      }
     });
   }
 
@@ -102,11 +111,11 @@
   }
 
   function init(){
-    addStyles();captureSearchResults();addButtons();addFeedLink();hydrateLiveSignals();addNotMyVibeOption();wrapSaveVibe();
+    addStyles();captureSearchResults();addButtons();addFeedLink();hydrateLiveSignals();normalizeVibeOptions();wrapSaveVibe();
     const target=document.getElementById('places');
     if(target){new MutationObserver(function(){addButtons();addFeedLink();hydrateLiveSignals();wrapSaveVibe()}).observe(target,{childList:true,subtree:true})}
     const modal=document.getElementById('modal');
-    if(modal){new MutationObserver(addNotMyVibeOption).observe(modal,{childList:true,subtree:true})}
+    if(modal){new MutationObserver(normalizeVibeOptions).observe(modal,{childList:true,subtree:true})}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
