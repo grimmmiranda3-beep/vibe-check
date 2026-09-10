@@ -65,17 +65,18 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  // Honeypot for simple bots. Real users should leave this field empty.
   if (String(body.website || "").trim()) {
     return res.status(201).json({ ok: true, message: "Thanks! We'll be in touch." });
   }
 
   const businessName = clean(body.businessName, 160);
+  const ownerName = clean(body.ownerName, 120);
   const email = clean(body.email, 160).toLowerCase();
+  const phone = clean(body.phone, 40);
   const placeId = clean(body.placeId, 120);
 
-  if (!businessName || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ ok: false, error: "Business name and a valid email are required." });
+  if (!businessName || !ownerName || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ ok: false, error: "Business name, your name, and a valid email are required." });
   }
 
   try {
@@ -83,7 +84,9 @@ export default async function handler(req, res) {
     const lead = JSON.stringify({
       id,
       businessName,
+      ownerName,
       email,
+      phone,
       placeId,
       createdAt: new Date().toISOString()
     });
