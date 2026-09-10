@@ -58,5 +58,8 @@ export default async function handler(req,res){
   },req);
   const s=Array.isArray(d)?d[0]||{}:d||{};
   return res.status(200).json({ok:true,alreadyCheckedIn:Boolean(s.already_checked_in),updatedVibe:Boolean(s.updated_vibe),placeId:placeId.trim(),vibe:normalizedVibe,recordedAt:new Date().toISOString(),...live(await rpc("vibe_live_checkins",{p_place_id:placeId.trim()},req))});
- }catch(e){console.error("Vibe check-in error:",e);return res.status(500).json({error:"Unable to record vibe right now."})}
+ }catch(e){
+  if(e?.message==="rate_limited")return res.status(429).json({error:"You’ve reached the check-in limit for now. Please try again in a few minutes."});
+  console.error("Vibe check-in error:",e);return res.status(500).json({error:"Unable to record vibe right now."})
+ }
 }
