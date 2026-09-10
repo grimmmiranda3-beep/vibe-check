@@ -12,8 +12,10 @@
     if(document.getElementById(ID+'Styles')) return;
     const s=document.createElement('style'); s.id=ID+'Styles';
     s.textContent=`
-      #${ID} .vc-ci-btn{margin-top:10px;width:100%;border:0;border-radius:11px;padding:10px 12px;background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff;font-weight:900;font-size:12px;cursor:pointer}
+      #${ID} .vc-ci-btn{margin-top:11px;width:100%;min-height:44px;border:0;border-radius:12px;padding:10px 12px;background:linear-gradient(135deg,#7c3aed,#ec4899);color:#fff;font-weight:900;font-size:12px;line-height:1.15;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
       #${ID} .vc-ci-btn:hover{transform:translateY(-1px);box-shadow:0 6px 15px rgba(124,58,237,.18)}
+      #${ID} .vc-ci-btn:active{transform:translateY(0)}
+      #${ID} .vc-ci-btn:disabled{opacity:.6;cursor:wait;transform:none}
       .vc-ci-overlay{position:fixed;inset:0;background:rgba(23,16,28,.58);display:none;place-items:center;z-index:90;padding:18px}
       .vc-ci-overlay.show{display:grid}
       .vc-ci-card{width:min(560px,100%);background:#fff;border-radius:24px;padding:22px;box-shadow:0 30px 80px rgba(18,10,28,.28)}
