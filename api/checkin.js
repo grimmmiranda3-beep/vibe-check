@@ -28,19 +28,35 @@ export default async function handler(req,res){
   const placeId=req.method==="GET"?req.query?.placeId:(req.body||{}).placeId;
   if(typeof placeId!=="string"||!placeId.trim()||placeId.length>500)return res.status(400).json({error:"A valid placeId is required."});
   if(req.method==="GET")return res.status(200).json(live(await rpc("vibe_live_checkins",{p_place_id:placeId.trim()},req)));
+
   const{vibe,placeName,placeAddress,latitude,longitude}=req.body||{};
   if(!ALLOWED.includes(vibe))return res.status(400).json({error:"A valid vibe is required."});
   let visitorId=getCookie(req);if(!visitorId){visitorId=visitor();setCookie(res,visitorId)}
-  let lat=Number(latitude),lng=Number(longitude),resolvedName=typeof placeName==="string"?placeName.slice(0,300):null,resolvedAddress=typeof placeAddress==="string"?placeAddress.slice(0,500):null;
-  if(!(Number.isFinite(lat)&&Math.abs(lat)<=90&&Number.isFinite(lng)&&Math.abs(lng)<=180)){
-   const place=await resolvePlace(placeId.trim());
-   if(place){
-    lat=place.latitude;lng=place.longitude;
-    if(!resolvedName)resolvedName=place.name;
-    if(!resolvedAddress)resolvedAddress=place.address;
-   }
-  }
-  const d=await rpc("vibe_submit_checkin",{p_place_id:placeId.trim(),p_visitor_id:visitorId,p_vibe:vibe,p_place_name:resolvedName,p_place_address:resolvedAddress,p_latitude:Number.isFinite(lat)&&Math.abs(lat)<=90?lat:null,p_longitude:Number.isFinite(lng)&&Math.abs(lng)<=180?lng:null},req);
+
+  // latitude/longitude are the user's device coordinates. They must never be
+  // replaced with the business coordinates: Nearby is based on where the
+  // person actually checked in, not the city/place they searched.
+  const userLat=Number(latitude),userLng=Number(longitude);
+  const validUserLat=Number.isFinite(userLat)&&Math.abs(userLat)<=90?userLat:null;
+  const validUserLng=Number.isFinite(userLng)&&Math.abs(userLng)<=180?userLng:null;
+
+  const place=await resolvePlace(placeId.trim());
+  const resolvedName=typeof placeName==="string"&&placeName.trim()?placeName.slice(0,300):(place?.name||null);
+  const resolvedAddress=typeof placeAddress==="string"&&placeAddress.trim()?placeAddress.slice(0,500):(place?.address||null);
+  const placeLat=Number.isFinite(place?.latitude)&&Math.abs(place.latitude)<=90?place.latitude:null;
+  const placeLng=Number.isFinite(place?.longitude)&&Math.abs(place.longitude)<=180?place.longitude:null;
+
+  const d=await rpc("vibe_submit_checkin",{
+    p_place_id:placeId.trim(),
+    p_visitor_id:visitorId,
+    p_vibe:vibe,
+    p_place_name:resolvedName,
+    p_place_address:resolvedAddress,
+    p_latitude:validUserLat,
+    p_longitude:validUserLng,
+    p_place_latitude:placeLat,
+    p_place_longitude:placeLng
+  },req);
   const s=Array.isArray(d)?d[0]||{}:d||{};
   return res.status(200).json({ok:true,alreadyCheckedIn:Boolean(s.already_checked_in),updatedVibe:Boolean(s.updated_vibe),placeId:placeId.trim(),vibe,recordedAt:new Date().toISOString(),...live(await rpc("vibe_live_checkins",{p_place_id:placeId.trim()},req))});
  }catch(e){console.error("Vibe check-in error:",e);return res.status(500).json({error:"Unable to record vibe right now."})}
