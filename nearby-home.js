@@ -45,7 +45,7 @@
       #${ID} .vc-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 20px 18px}
       #${ID} .vc-card{background:linear-gradient(180deg,#fff,#fcf9ff);border:1px solid #ece8ee;border-radius:17px;padding:13px;min-width:0}
       #${ID} .vc-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-      #${ID} .vc-vibe{font-size:25px;line-height:1}
+      #${ID} .vc-vibe{font-size:25px;line-height:1;flex:0 0 auto}
       #${ID} .vc-live{font-size:9px;font-weight:950;color:#16a34a;text-transform:uppercase;letter-spacing:.05em}
       #${ID} .vc-name{font-weight:900;font-size:15px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       #${ID} .vc-meta{font-size:10px;color:#77727b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -64,8 +64,10 @@
         #${ID} .vc-copy{font-size:12px}
         #${ID} .vc-loc{width:auto;min-width:0;padding:10px 12px}
         #${ID} .vc-controls{padding:0 16px 11px;align-items:flex-start}
-        #${ID} .vc-cards{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding:0 16px 16px}
-        #${ID} .vc-card{flex:0 0 82%;scroll-snap-align:start}
+        #${ID} .vc-cards{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;padding:0 16px 16px;scrollbar-width:none}
+        #${ID} .vc-cards::-webkit-scrollbar{display:none}
+        #${ID} .vc-card{flex:0 0 86%;width:86%;max-width:360px;scroll-snap-align:start;box-sizing:border-box}
+        #${ID} .vc-card-top{gap:8px}
         #${ID} .vc-empty{padding-left:16px;padding-right:16px}
         #${ID} .vc-privacy{padding-left:16px;padding-right:16px}
       }
@@ -76,6 +78,13 @@
         #${ID} .vc-controls{flex-direction:column;gap:9px}
         #${ID} .vc-radius-wrap{width:100%;justify-content:space-between}
         #${ID} .vc-radius{flex:1}
+        #${ID} .vc-cards{gap:12px;padding-left:16px;padding-right:16px}
+        #${ID} .vc-card{flex-basis:calc(100vw - 52px);width:calc(100vw - 52px);max-width:none;padding:14px}
+        #${ID} .vc-card-top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}
+        #${ID} .vc-vibe{font-size:28px;padding-top:2px}
+        #${ID} .vc-name{font-size:16px}
+        #${ID} .vc-meta{font-size:11px;margin-top:3px}
+        #${ID} .vc-signal{font-size:12px;margin-top:11px}
       }
     `;
     document.head.appendChild(style);
@@ -107,11 +116,6 @@
       }
     }catch(e){}
     return 'unknown';
-  }
-
-  function setRadiusText(){
-    const s=document.getElementById('vcStatus');
-    if(s) s.innerHTML=`📍 <strong>Nearby mode is on</strong> · live activity within ${radius} mile${radius===1?'':'s'}`;
   }
 
   async function locate(){
@@ -162,7 +166,7 @@
       cards.innerHTML=places.slice(0,6).map(p=>{
         const emoji=p.dominant||'💜',label=vibeWords[emoji]||'Live vibe';
         const total=Number(p.total||0),pct=Number(p.dominant_percent||0),distance=p.distance_miles!=null?`${p.distance_miles} mi`:'Nearby';
-        return `<article class="vc-card"><div class="vc-card-top"><div><div class="vc-live">● Live signal</div><div class="vc-name" title="${esc(p.place_name||'Local place')}">${esc(p.place_name||'Local place')}</div><div class="vc-meta" title="${esc(p.place_address||'Nearby')}">${esc(p.place_address||'Nearby')}</div></div><div class="vc-vibe">${esc(emoji)}</div></div><div class="vc-signal">${esc(label)}${pct?` · ${pct}%`:''}</div><div class="vc-pills"><span class="vc-pill">⚡ ${total} check-in${total===1?'':'s'}</span><span class="vc-pill">📍 ${esc(distance)}</span></div></article>`;
+        return `<article class="vc-card"><div class="vc-card-top"><div><div class="vc-live">● Live signal</div><div class="vc-name" title="${esc(p.place_name||'Local place')}">${esc(p.place_name||'Local place')}</div><div class="vc-meta" title="${esc(p.place_address||'Nearby')}">${esc(p.place_address||'Nearby')}</div></div><div class="vc-vibe" aria-label="Current vibe">${esc(emoji)}</div></div><div class="vc-signal">${esc(label)}${pct?` · ${pct}%`:''}</div><div class="vc-pills"><span class="vc-pill">⚡ ${total} check-in${total===1?'':'s'}</span><span class="vc-pill">📍 ${esc(distance)}</span></div></article>`;
       }).join('');
     }catch(e){
       cards.style.display='none';empty.style.display='block';
