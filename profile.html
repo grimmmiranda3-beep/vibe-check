@@ -21,6 +21,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 let sb=null;
+const SUPABASE_URL='https://zfpxkijhgdtppdlgvsyo.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_wzo6WpG6wsS52GVdKyftTA_4K2NYDa8';
 const $=id=>document.getElementById(id);
 const VIBE_WORDS={'😍':'Loved','😊':'Chill','🔥':'Energetic','😌':'Relaxed','🥳':'Party'};
 function message(text){$('message').textContent=text;$('message').classList.add('show')}
@@ -46,9 +48,7 @@ async function loadHistory(){
 function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 async function initAuth(){
  try{
-  const r=await fetch('/api/auth-config',{cache:'no-store'});const cfg=await r.json();
-  if(!cfg.configured){message('Account sign-in is being connected. You can keep using Vibe Check as a guest for now.');return}
-  sb=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   const {data}=await sb.auth.getSession();renderSession(data.session);
   sb.auth.onAuthStateChange((_event,session)=>{renderSession(session);if(session)setTimeout(loadHistory,0)});
  }catch{message('Guest mode is available. Account sign-in is temporarily unavailable.')}
