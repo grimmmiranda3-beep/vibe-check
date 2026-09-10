@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import UIKit
+import LinkPresentation
 
 struct ContentView: View {
     var body: some View {
@@ -43,11 +44,19 @@ struct VibelyWebView: UIViewRepresentable {
             let urlString = payload["url"] as? String
             let sharedURL = urlString.flatMap(URL.init(string:))
 
-            var items: [Any] = [text]
-            if let sharedURL { items.append(sharedURL) }
+            // Give iOS a real share item with branded link metadata so the
+            // preview feels like Vibe Check rather than a generic web link.
+            let shareItem = VibeShareItem(
+                title: title,
+                text: text,
+                url: sharedURL
+            )
 
-            let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
-            controller.title = title
+            let controller = UIActivityViewController(
+                activityItems: [shareItem],
+                applicationActivities: nil
+            )
+            controller.title = "Share Vibe"
 
             if let popover = controller.popoverPresentationController {
                 popover.sourceView = webView
@@ -71,5 +80,46 @@ struct VibelyWebView: UIViewRepresentable {
             }
             return controller
         }
+    }
+}
+
+/// Custom share item used by the native iOS share sheet.
+/// It keeps the actual message useful while supplying link metadata for a
+/// polished Vibe Check preview in Messages and other supported share targets.
+final class VibeShareItem: NSObject, UIActivityItemSource {
+    let title: String
+    let text: String
+    let url: URL?
+
+    init(title: String, text: String, url: URL?) {
+        self.title = title
+        self.text = text
+        self.url = url
+    }
+
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        url ?? text
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        if let url {
+            return "\(text)\n\n\(url.absoluteString)"
+        }
+        return text
+    }
+
+    func activityViewControllerLinkMetadata(
+        _ activityViewController: UIActivityViewController
+    ) -> LPLinkMetadata? {
+        guard let url else { return nil }
+
+        let metadata = LPLinkMetadata()
+        metadata.title = title
+        metadata.originalURL = url
+        metadata.url = url
+        return metadata
     }
 }
