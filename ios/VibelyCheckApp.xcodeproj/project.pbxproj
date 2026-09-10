@@ -19,8 +19,8 @@
  D24EDF9AC8844761B29C9F4B = { isa = PBXBuildFile; fileRef = C17F288C62484332B806B985; };
  BAA1CCA815F34E79806EA55D = { isa = PBXBuildFile; fileRef = 88241602B69248F88A4ECD87; };
  8BF16DD3F4304ADDA906CD68 = { isa = XCConfigurationList; buildConfigurations = ( B9E5433CBAE44AA9A70428C8, E51A505A53BB4C4D99BEB87F ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
- B9E5433CBAE44AA9A70428C8 = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = "com.vibelycheck.app"; PRODUCT_NAME = "Vibely Check"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 18.0; INFOPLIST_FILE = "ios/VibelyCheckApp/Info.plist"; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
- E51A505A53BB4C4D99BEB87F = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = "com.vibelycheck.app"; PRODUCT_NAME = "Vibely Check"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 18.0; INFOPLIST_FILE = "ios/VibelyCheckApp/Info.plist"; TARGETED_DEVICE_FAMILY = 1; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
+ B9E5433CBAE44AA9A70428C8 = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = "com.vibelycheck.app"; PRODUCT_NAME = "Vibely Check"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 18.0; INFOPLIST_FILE = "VibelyCheckApp/Info.plist"; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+ E51A505A53BB4C4D99BEB87F = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = "com.vibelycheck.app"; PRODUCT_NAME = "Vibely Check"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 18.0; INFOPLIST_FILE = "VibelyCheckApp/Info.plist"; TARGETED_DEVICE_FAMILY = 1; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
  0BBF8500318840358919E8F7 = { isa = XCConfigurationList; buildConfigurations = ( B9E5433CBAE44AA9A70428C8, E51A505A53BB4C4D99BEB87F ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
  };
  rootObject = 5612E9A9EC6B4ECB91EE9852;
