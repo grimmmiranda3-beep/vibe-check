@@ -14,11 +14,38 @@
     document.head.appendChild(s);
   }
   function panel(){const host=document.getElementById('exploreContent');if(!host)return null;let p=document.getElementById('vibelyTrending');if(!p){p=document.createElement('section');p.id='vibelyTrending';p.className='trending-panel';host.appendChild(p)}return p}
-  function capture(){if(window.__vibeDiscoveryFetchPatched)return;window.__vibeDiscoveryFetchPatched=true;const original=window.fetch.bind(window);window.fetch=async function(...args){const response=await original(...args);try{const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';if(/\/api\/search\?/.test(url)){const clone=response.clone();const data=await clone.json();if(Array.isArray(data?.places)){latestPlaces=data.places.slice(0,12);schedule()}}}catch{}return response}}
+  function capture(){
+    if(window.__vibeDiscoveryFetchPatched)return;
+    window.__vibeDiscoveryFetchPatched=true;
+    const original=window.fetch.bind(window);
+    window.fetch=async function(...args){
+      const response=await original(...args);
+      try{
+        const url=typeof args[0]==='string'?args[0]:args[0]?.url||'';
+        const method=(args[1]?.method||args[0]?.method||'GET').toUpperCase();
+        if(/\/api\/search\?/.test(url)){
+          const clone=response.clone();const data=await clone.json();
+          if(Array.isArray(data?.places)){latestPlaces=data.places.slice(0,12);schedule()}
+        }
+        if(/\/api\/checkin/.test(url) && method==='POST' && response.ok){
+          setTimeout(schedule,450);
+        }
+      }catch{}
+      return response;
+    };
+  }
   async function activity(place){if(!place?.id)return {...place,total:0,counts:{},dominant:null};try{const r=await fetch(`/api/checkin?placeId=${encodeURIComponent(place.id)}&_=${Date.now()}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw Error();return {...place,total:Number(d.total||0),counts:d.counts||{},dominant:d.dominant||null}}catch{return {...place,total:0,counts:{},dominant:null}}}
   function score(p){return Number(p.total||0)*1000 + Object.values(p.counts||{}).reduce((a,b)=>a+Number(b||0),0)}
   function fallback(p){const text=`${p.name||''} ${p.type||''}`.toLowerCase();if(/bar|club|nightlife/.test(text))return'🔥';if(/coffee|cafe/.test(text))return'😊';if(/restaurant|food|dining/.test(text))return'😍';return'😌'}
-  async function render(){styles();const p=panel();if(!p)return;if(!latestPlaces.length){p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Search a place type and city to see live community energy.</p></div><span class="trending-live">LIVE</span></div>';return}p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Not reviews. Not stars. Just what people are feeling right now.</p></div><span class="trending-live">LIVE</span></div><div class="trend-empty">Reading the current vibe pulse…</div>';const all=await Promise.all(latestPlaces.map(activity));const active=all.filter(x=>x.total>0).sort((a,b)=>score(b)-score(a)).slice(0,3);if(!active.length){p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Your search has no recent check-ins yet.</p></div></div><div class="trend-empty"><b>Someone has to start the pulse.</b><br>Check in at a place and your anonymous vibe can become the first signal.</div>';return}p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Live activity—not lifetime ratings.</p></div><span class="trending-live">LIVE</span></div><div class="trending-grid">'+active.map((x,i)=>{const vibe=x.dominant||fallback(x);const entries=Object.entries(x.counts||{}).filter(([v])=>LABELS[v]).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3);return `<article class="trend-card" data-id="${esc(x.id)}"><div class="trend-rank">#${i+1} Active now</div><div class="trend-name">${esc(x.name||'Local place')}</div><div class="trend-vibe">${esc(vibe)}</div><div class="trend-label">${esc(LABELS[vibe]||'Current vibe')}</div><div class="trend-meta">${esc(x.type||'Place')} · anonymous community signal</div><div class="trend-pulse">⚡ ${x.total} recent check-in${x.total===1?'':'s'}</div><div class="trend-breakdown">${entries.map(([v,n])=>`<span class="trend-chip">${esc(v)} ${Number(n)}</span>`).join('')}</div></article>`}).join('')+'</div>';p.querySelectorAll('.trend-card').forEach(card=>card.onclick=()=>{const place=latestPlaces.find(x=>String(x.id)===String(card.dataset.id));if(place&&typeof window.openModal==='function')window.openModal(latestPlaces.indexOf(place))});}
+  async function render(){styles();const p=panel();if(!p)return;if(!latestPlaces.length){p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Search a place type and city to see live community energy.</p></div><span class="trending-live">LIVE</span></div>';return}p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Not reviews. Not stars. Just what people are feeling right now.</p></div><span class="trending-live">LIVE</span></div><div class="trend-empty">Reading the current vibe pulse…</div>';const all=await Promise.all(latestPlaces.map(activity));const active=all.filter(x=>x.total>0).sort((a,b)=>score(b)-score(a)).slice(0,3);if(!active.length){p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Your search has no recent check-ins yet.</p></div></div><div class="trend-empty"><b>Someone has to start the pulse.</b><br>Check in at a place and your anonymous vibe can become the first signal.</div>';return}p.innerHTML='<div class="trending-head"><div><h2>🔥 Happening right now</h2><p>Live activity—not lifetime ratings.</p></div><span class="trending-live">LIVE</span></div><div class="trending-grid">'+active.map((x,i)=>{const vibe=x.dominant||fallback(x);const entries=Object.entries(x.counts||{}).filter(([v])=>LABELS[v]).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3);return `<article class="trend-card" data-id="${esc(x.id)}"><div class="trend-rank">#${i+1} Active now</div><div class="trend-name">${esc(x.name||'Local place')}</div><div class="trend-vibe">${esc(vibe)}</div><div class="trend-label">${esc(LABELS[vibe]||'Current vibe')}</div><div class="trend-meta">${esc(x.type||'Place')} · anonymous community signal</div><div class="trend-pulse">⚡ ${x.total} recent check-in${x.total===1?'':'s'}</div><div class="trend-breakdown">${entries.map(([v,n])=>`<span class="trend-chip">${esc(v)} ${Number(n)}</span>`).join('')}</div></article>`}).join('')+'</div>';
+    p.querySelectorAll('.trend-card').forEach(card=>card.onclick=()=>{
+      const place=latestPlaces.find(x=>String(x.id)===String(card.dataset.id));
+      if(!place||typeof window.openModal!=='function')return;
+      const visible=Array.isArray(window.visiblePlaces)?window.visiblePlaces:[];
+      const index=visible.findIndex(x=>String(x.id)===String(place.id));
+      window.openModal(index>=0?index:latestPlaces.indexOf(place));
+    });
+  }
   function schedule(){clearTimeout(timer);timer=setTimeout(render,250)}
   window.VibeDiscovery={refresh:schedule};capture();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',render);else render();setInterval(render,60000);
 })();
