@@ -1,7 +1,7 @@
 // Vibe Check — resilient browser OAuth callback + Google ID-token sign-in fallback
 (function(){
   'use strict';
-  const GOOGLE_CLIENT_ID='968914547854-13iam4osfucttrm6scmgsvld9udnav6.apps.googleusercontent.com';
+  const GOOGLE_CLIENT_ID='96891457854-13iam4osfucttrm6scmgsvld9udnav6.apps.googleusercontent.com';
 
   function getClient(){
     try{return typeof sb!=='undefined'&&sb?.auth?sb:null}catch{return null}
@@ -11,11 +11,8 @@
     if(el){el.textContent=text;el.classList.add('show')}
   }
 
-  // The Supabase custom Auth domain is currently active, so Supabase OAuth
-  // advertises auth.vibelycheck.com as Google's callback. If a device cannot
-  // resolve that DNS name, use Google's browser credential flow instead. This
-  // sends Google's ID token directly to Supabase and never visits the custom
-  // Auth hostname, while keeping the same Supabase user/session.
+  // Use Google's browser credential flow instead of Supabase's OAuth redirect.
+  // This avoids the custom auth hostname and is more reliable in Safari.
   async function setupGoogleIdTokenFallback(){
     const button=document.getElementById('googleBtn');
     if(!button)return;
@@ -64,9 +61,6 @@
         }
       };
 
-      // Keep the familiar Vibe Check button visible, but let Google own the
-      // actual credential UI in a popup. The rendered Google button is placed
-      // over the original button so the user's click is still a direct gesture.
       const wrap=document.createElement('div');
       wrap.id='googleGsiWrap';
       wrap.style.cssText='position:relative;width:100%;height:48px;margin-top:9px;overflow:hidden;border-radius:13px;';
@@ -76,8 +70,7 @@
         client_id:GOOGLE_CLIENT_ID,
         callback:window.handleVibeGoogleCredential,
         nonce:hashedNonce,
-        ux_mode:'popup',
-        use_fedcm_for_prompt:true
+        ux_mode:'popup'
       });
       window.google.accounts.id.renderButton(wrap,{
         type:'standard',
@@ -129,7 +122,6 @@
       finish();
     }
 
-    // Give the inline profile script time to create `sb` and the Google button.
     const started=Date.now();
     const wait=()=>{
       if(getClient()&&document.getElementById('googleBtn')){setupGoogleIdTokenFallback();return}
