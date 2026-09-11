@@ -1,7 +1,7 @@
-// Vibe Check — resilient browser OAuth callback + Google ID-token sign-in fallback
+// Vibe Check — resilient browser Google sign-in
 (function(){
   'use strict';
-  const GOOGLE_CLIENT_ID='968914547854-13iam4osfucttrm6scmgsvld9udnav6.apps.googleusercontent.com';
+  const GOOGLE_CLIENT_ID='96891457854-13iam4osfucttrm6scmgsvld9udnav6.apps.googleusercontent.com';
 
   function getClient(){
     try{return typeof sb!=='undefined'&&sb?.auth?sb:null}catch{return null}
@@ -11,15 +11,12 @@
     if(el){el.textContent=text;el.classList.add('show')}
   }
 
-  // Use Google's browser credential flow instead of Supabase's OAuth redirect.
-  // This avoids the custom auth hostname and is more reliable in Safari.
-  async function setupGoogleIdTokenFallback(){
-    const button=document.getElementById('googleBtn');
-    if(!button)return;
-    const client=getClient();
-    if(!client)return;
+  let gsiReady=null;
+  let googleButtonRendered=false;
 
-    const loadGoogle=()=>new Promise((resolve,reject)=>{
+  const loadGoogle=()=>{
+    if(gsiReady)return gsiReady;
+    gsiReady=new Promise((resolve,reject)=>{
       if(window.google?.accounts?.id){resolve();return}
       const existing=document.querySelector('script[data-vibe-google-gsi]');
       if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',reject,{once:true});return}
@@ -32,6 +29,22 @@
       s.onerror=reject;
       document.head.appendChild(s);
     });
+    return gsiReady;
+  };
+
+  async function setupGoogleIdTokenFallback(){
+    const button=document.getElementById('googleBtn');
+    if(!button)return;
+    const client=getClient();
+    if(!client)return;
+
+    // IMPORTANT: replace the old Supabase OAuth onclick immediately.
+    // The previous handler sent the browser to auth.vibelycheck.com and
+    // produced Google's invalid_client page. Never allow that handler to run.
+    button.onclick=function(event){
+      if(event)event.preventDefault();
+      return startGoogleSignIn();
+    };
 
     try{
       await loadGoogle();
@@ -39,11 +52,7 @@
       const hashBuffer=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(rawNonce));
       const hashedNonce=Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
 
-      let busy=false;
       window.handleVibeGoogleCredential=async function(response){
-        if(busy)return;
-        busy=true;
-        button.disabled=true;
         try{
           const {data,error}=await client.auth.signInWithIdToken({
             provider:'google',
@@ -56,7 +65,6 @@
         }catch(e){
           showMessage(e?.message||'Google sign-in could not be completed. Please try again.');
         }finally{
-          busy=false;
           button.disabled=false;
         }
       };
@@ -81,10 +89,24 @@
         logo_alignment:'left',
         width:wrap.clientWidth||640
       });
-    }catch{
-      // Leave the original Supabase OAuth button available if Google GSI
-      // cannot load. No other auth configuration is changed here.
+      googleButtonRendered=true;
+    }catch(e){
+      // Do NOT restore the old OAuth handler. Show a useful error instead.
+      button.disabled=false;
+      showMessage('Google sign-in could not load. Please refresh and try again.');
     }
+  }
+
+  async function startGoogleSignIn(){
+    const button=document.getElementById('googleBtn');
+    if(!button)return false;
+    const client=getClient();
+    if(!client){showMessage('Google sign-in is not connected yet.');return false}
+    if(googleButtonRendered)return false;
+    button.disabled=true;
+    await setupGoogleIdTokenFallback();
+    if(!googleButtonRendered)button.disabled=false;
+    return false;
   }
 
   function boot(){
@@ -124,7 +146,16 @@
 
     const started=Date.now();
     const wait=()=>{
-      if(getClient()&&document.getElementById('googleBtn')){setupGoogleIdTokenFallback();return}
+      const button=document.getElementById('googleBtn');
+      if(getClient()&&button){
+        // Replace the legacy OAuth handler before attempting to load Google.
+        button.onclick=function(event){
+          if(event)event.preventDefault();
+          return startGoogleSignIn();
+        };
+        setupGoogleIdTokenFallback();
+        return;
+      }
       if(Date.now()-started<8000){setTimeout(wait,100);return}
     };
     wait();
