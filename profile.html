@@ -21,7 +21,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 let sb=null;
-const SUPABASE_URL='https://zfpxkijhgdtppdlgvsyo.supabase.co';
+const SUPABASE_URL='https://auth.vibelycheck.com';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_wzo6WpG6wsS52GVdKyftTA_4K2NYDa8';
 const $=id=>document.getElementById(id);
 const VIBE_WORDS={'😍':'Loved','😊':'Chill','🔥':'Energetic','😌':'Relaxed','🥳':'Party'};
@@ -29,36 +29,12 @@ function message(text){$('message').textContent=text;$('message').classList.add(
 function formatDate(value){try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}}
 async function sessionToken(){if(!sb)return '';const {data}=await sb.auth.getSession();return data.session?.access_token||''}
 async function linkVisitor(){const token=await sessionToken();if(!token)return;try{await fetch('/api/link-visitor',{method:'POST',headers:{Authorization:`Bearer ${token}`},credentials:'include',cache:'no-store'})}catch{} }
-async function loadHistory(){
- const token=await sessionToken();
- if(!token){$('historyCard').style.display='none';$('checkinCount').textContent='0';$('favoriteVibe').textContent='—';return}
- $('historyCard').style.display='block';$('historyList').innerHTML='<div class="history-loading">Loading your check-ins…</div>';
- try{
-  await linkVisitor();
-  const r=await fetch('/api/checkin?history=1&limit=20',{headers:{Authorization:`Bearer ${token}`},credentials:'include',cache:'no-store'});
-  const data=await r.json();
-  if(!r.ok)throw new Error(data.error||'Unable to load check-ins.');
-  const items=Array.isArray(data.checkins)?data.checkins:[];
-  $('checkinCount').textContent=String(items.length);
-  const counts={};items.forEach(x=>counts[x.vibe]=(counts[x.vibe]||0)+1);const favorite=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];$('favoriteVibe').textContent=favorite?`${favorite[0]} ${VIBE_WORDS[favorite[0]]||''}`:'—';
-  if(!items.length){$('historyList').innerHTML='<div class="history-empty">No check-ins yet. Find a place and add your vibe to start your personal history.</div>';return}
-  $('historyList').innerHTML=items.map(item=>{const name=item.place_name||'Local place';const address=item.place_address||'Vibe Check location';const vibe=item.vibe||'💜';return `<div class="history-item"><div class="history-vibe">${vibe}</div><div class="history-main"><div class="history-name">${escapeHtml(name)}</div><div class="history-meta">${escapeHtml(VIBE_WORDS[vibe]||'Vibe')} · ${escapeHtml(address)}<br>${escapeHtml(formatDate(item.created_at))}</div></div></div>`}).join('');
- }catch(e){$('historyList').innerHTML=`<div class="history-empty">${escapeHtml(e.message||'Unable to load your check-ins right now.')}</div>`}
-}
+async function loadHistory(){const token=await sessionToken();if(!token){$('historyCard').style.display='none';$('checkinCount').textContent='0';$('favoriteVibe').textContent='—';return}$('historyCard').style.display='block';$('historyList').innerHTML='<div class="history-loading">Loading your check-ins…</div>';try{await linkVisitor();const r=await fetch('/api/checkin?history=1&limit=20',{headers:{Authorization:`Bearer ${token}`},credentials:'include',cache:'no-store'});const data=await r.json();if(!r.ok)throw new Error(data.error||'Unable to load check-ins.');const items=Array.isArray(data.checkins)?data.checkins:[];$('checkinCount').textContent=String(items.length);const counts={};items.forEach(x=>counts[x.vibe]=(counts[x.vibe]||0)+1);const favorite=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];$('favoriteVibe').textContent=favorite?`${favorite[0]} ${VIBE_WORDS[favorite[0]]||''}`:'—';if(!items.length){$('historyList').innerHTML='<div class="history-empty">No check-ins yet. Find a place and add your vibe to start your personal history.</div>';return}$('historyList').innerHTML=items.map(item=>{const name=item.place_name||'Local place';const address=item.place_address||'Vibe Check location';const vibe=item.vibe||'💜';return `<div class="history-item"><div class="history-vibe">${vibe}</div><div class="history-main"><div class="history-name">${escapeHtml(name)}</div><div class="history-meta">${escapeHtml(VIBE_WORDS[vibe]||'Vibe')} · ${escapeHtml(address)}<br>${escapeHtml(formatDate(item.created_at))}</div></div></div>`}).join('')}catch(e){$('historyList').innerHTML=`<div class="history-empty">${escapeHtml(e.message||'Unable to load your check-ins right now.')}</div>`}}
 function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-async function initAuth(){
- try{
-  sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  const {data}=await sb.auth.getSession();renderSession(data.session);
-  sb.auth.onAuthStateChange((_event,session)=>{renderSession(session);if(session)setTimeout(loadHistory,0)});
- }catch{message('Guest mode is available. Account sign-in is temporarily unavailable.')}
-}
-function renderSession(session){
- if(!session){$('displayName').textContent='Guest';$('displaySub').textContent='Anonymous Vibe Checker';$('loginCard').style.display='block';$('signoutRow').style.display='none';$('historyCard').style.display='none';return}
- const email=session.user.email||'Vibe Checker';const name=session.user.user_metadata?.full_name||session.user.user_metadata?.name||email.split('@')[0];$('displayName').textContent=name;$('displaySub').textContent=email;$('avatar').textContent=(name[0]||'✦').toUpperCase();$('loginCard').style.display='none';$('signoutRow').style.display='flex';message('You are signed in. Your private check-in history is saved to your account.');
-}
+async function initAuth(){try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});const {data}=await sb.auth.getSession();renderSession(data.session);sb.auth.onAuthStateChange((_event,session)=>{renderSession(session);if(session)setTimeout(loadHistory,0)})}catch{message('Guest mode is available. Account sign-in is temporarily unavailable.')}}
+function renderSession(session){if(!session){$('displayName').textContent='Guest';$('displaySub').textContent='Anonymous Vibe Checker';$('loginCard').style.display='block';$('signoutRow').style.display='none';$('historyCard').style.display='none';return}const email=session.user.email||'Vibe Checker';const name=session.user.user_metadata?.full_name||session.user.user_metadata?.name||email.split('@')[0];$('displayName').textContent=name;$('displaySub').textContent=email;$('avatar').textContent=(name[0]||'✦').toUpperCase();$('loginCard').style.display='none';$('signoutRow').style.display='flex';message('You are signed in. Your private check-in history is saved to your account.')}
 $('emailBtn').onclick=async()=>{if(!sb){message('Sign-in is not connected yet. Guest mode is still available.');return}const email=$('email').value.trim();if(!email){message('Enter your email first.');return}$('emailBtn').disabled=true;try{const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+'/profile.html'}});if(error)throw error;message('Check your email for your secure Vibe Check sign-in link.')}catch(e){message(e.message||'Unable to send the sign-in link.')}finally{$('emailBtn').disabled=false}}
-$('googleBtn').onclick=async()=>{if(!sb){message('Google sign-in is not connected yet. Guest mode is still available.');return}const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+'/profile.html'}});if(error)message(error.message)};
+$('googleBtn').onclick=async()=>{if(!sb){message('Google sign-in is not connected yet. Guest mode is still available.');return}const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+'/profile.html',queryParams:{access_type:'offline',prompt:'select_account'}}});if(error)message(error.message)};
 $('signoutBtn').onclick=async()=>{if(sb)await sb.auth.signOut();renderSession(null)};
 $('settingsBtn').onclick=()=>message('Account settings will include your display name, privacy choices, and connected sign-in methods.');
 $('historyBtn').onclick=()=>{if($('historyCard').style.display==='none'){message('Sign in to keep and view your private check-in history.')}else $('historyCard').scrollIntoView({behavior:'smooth',block:'start'})};
