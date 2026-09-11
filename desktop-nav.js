@@ -8,6 +8,14 @@
     script.src='/ask-vibely-ui.js?v=desktop-mobile-safe';
     script.async=false;
     script.dataset.askVibelyLoader='1';
+    script.onload=function(){
+      if(document.querySelector('script[data-ask-vibely-mobile-fix="1"]')) return;
+      const fix=document.createElement('script');
+      fix.src='/ask-vibely-mobile-fix.js?v=1';
+      fix.async=false;
+      fix.dataset.askVibelyMobileFix='1';
+      document.head.appendChild(fix);
+    };
     document.head.appendChild(script);
   }
   function businessTarget(el){
