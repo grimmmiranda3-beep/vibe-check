@@ -1,7 +1,7 @@
 // Vibe Check — resilient browser Google sign-in
 (function(){
   'use strict';
-  const GOOGLE_CLIENT_ID='96891457854-13iam4osfucttrm6scmgsvld9udnav6.apps.googleusercontent.com';
+  const GOOGLE_CLIENT_ID='968914547854-13iam4osfucttrm6scmgsvld9udnav6.apps.googleusercontent.com';
 
   function getClient(){
     try{return typeof sb!=='undefined'&&sb?.auth?sb:null}catch{return null}
@@ -38,9 +38,8 @@
     const client=getClient();
     if(!client)return;
 
-    // IMPORTANT: replace the old Supabase OAuth onclick immediately.
-    // The previous handler sent the browser to auth.vibelycheck.com and
-    // produced Google's invalid_client page. Never allow that handler to run.
+    // Replace the legacy Supabase OAuth onclick immediately. The old handler
+    // sent the browser to auth.vibelycheck.com and produced invalid_client.
     button.onclick=function(event){
       if(event)event.preventDefault();
       return startGoogleSignIn();
@@ -91,7 +90,7 @@
       });
       googleButtonRendered=true;
     }catch(e){
-      // Do NOT restore the old OAuth handler. Show a useful error instead.
+      // Never restore the legacy OAuth handler.
       button.disabled=false;
       showMessage('Google sign-in could not load. Please refresh and try again.');
     }
@@ -148,7 +147,7 @@
     const wait=()=>{
       const button=document.getElementById('googleBtn');
       if(getClient()&&button){
-        // Replace the legacy OAuth handler before attempting to load Google.
+        // Override the inline legacy handler before the user can click it.
         button.onclick=function(event){
           if(event)event.preventDefault();
           return startGoogleSignIn();
