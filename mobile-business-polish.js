@@ -68,8 +68,8 @@ function init(){
   document.getElementById('profilePrivacy').onclick=()=>{window.location.href='/privacy.html'};
  }
  function setActive(id){document.querySelectorAll('#mobileBusinessBar button').forEach(b=>b.classList.toggle('active',b.id===id));}
- function business(){document.getElementById('explore')?.style.setProperty('display','none','important');document.getElementById('exploreContent')?.style.setProperty('display','none','important');section?.classList.add('show');setActive('mBusiness');window.scrollTo({top:0,behavior:'smooth'});}
- function explore(){section?.classList.remove('show');document.getElementById('explore')?.style.removeProperty('display');document.getElementById('exploreContent')?.style.removeProperty('display');setActive('mExplore');window.scrollTo({top:0,behavior:'smooth'});}
+ function business(){window.location.assign('/business.html');}
+ function explore(){window.location.assign('/');}
  document.getElementById('mBusiness').onclick=business;
  document.getElementById('mExplore').onclick=explore;
  document.getElementById('mTrending').onclick=function(){ window.location.assign('/feed.html'); };
