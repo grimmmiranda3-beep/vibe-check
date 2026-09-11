@@ -24,9 +24,44 @@
     if(e.stopImmediatePropagation) e.stopImmediatePropagation();
     window.location.assign('/business.html');
   }
+  function addMobileNav(){
+    if(document.getElementById('vibeMobileNav')) return;
+    const style=document.createElement('style');
+    style.textContent=`
+      #vibeMobileNav{display:none}
+      @media(max-width:850px){
+        #vibeMobileNav{position:fixed;left:0;right:0;bottom:0;z-index:45;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);border-top:1px solid #ece8ee;backdrop-filter:blur(14px);box-shadow:0 -8px 24px rgba(25,18,35,.08)}
+        #vibeMobileNav button{border:0;background:transparent;border-radius:12px;padding:8px 3px;color:#77727b;font:700 11px/1.2 Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}
+        #vibeMobileNav button.active{background:#f2edf8;color:#7c3aed}
+        body{padding-bottom:76px}
+      }
+    `;
+    document.head.appendChild(style);
+    const nav=document.createElement('nav');
+    nav.id='vibeMobileNav';
+    nav.setAttribute('aria-label','Mobile navigation');
+    const items=[
+      ['📍','Explore','/'],
+      ['🔥','Trending','/feed.html'],
+      ['🏪','Businesses','/business.html'],
+      ['👤','Profile','/profile.html']
+    ];
+    items.forEach(([icon,label,url])=>{
+      const button=document.createElement('button');
+      button.type='button';
+      button.innerHTML=`<span aria-hidden="true">${icon}</span><br>${label}`;
+      const path=window.location.pathname.replace(/\\/$/,'')||'/';
+      const target=url.replace(/\\/$/,'')||'/';
+      if(path===target) button.classList.add('active');
+      button.addEventListener('click',()=>{window.location.href=url;});
+      nav.appendChild(button);
+    });
+    document.body.appendChild(nav);
+  }
   function init(){
     loadAskVibely();
     document.addEventListener('click',hardBusinessRoute,true);
+    addMobileNav();
     const nav=document.querySelector('.nav');
     if(!nav || nav.dataset.sharedDesktopNav==='1') return;
     nav.dataset.sharedDesktopNav='1';
