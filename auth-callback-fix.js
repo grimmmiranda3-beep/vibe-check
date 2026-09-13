@@ -1,7 +1,7 @@
 // Vibe Check — resilient browser Google sign-in
 (function(){
   'use strict';
-  const GOOGLE_CLIENT_ID='968914547854-13iam4osfucttrm6scmgsvld9udnav6.apps.googleusercontent.com';
+  const GOOGLE_CLIENT_ID='968914547854-13iam4osfucttrm6scmgsvld9uldnav6.apps.googleusercontent.com';
 
   function getClient(){
     try{return typeof sb!=='undefined'&&sb?.auth?sb:null}catch{return null}
