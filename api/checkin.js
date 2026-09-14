@@ -34,10 +34,11 @@ export default async function handler(req,res){
   if(typeof placeId!=="string"||!placeId.trim()||placeId.length>500)return res.status(400).json({error:"A valid placeId is required."});
   if(req.method==="GET")return res.status(200).json(live(await rpc("vibe_live_checkins",{p_place_id:placeId.trim()},req)));
 
-  const{vibe,placeName,placeAddress,latitude,longitude}=req.body||{};
+  const{vibe,placeName,placeAddress,latitude,longitude,visitorId:bodyVisitorId}=req.body||{};
   const normalizedVibe=typeof vibe==="string"?VIBE_ALIASES[vibe.trim()]||VIBE_ALIASES[vibe.trim().toLowerCase()]:null;
   if(!ALLOWED.includes(normalizedVibe))return res.status(400).json({error:"A valid vibe is required."});
-  let visitorId=getCookie(req);if(!visitorId){visitorId=visitor();setCookie(res,visitorId)}
+  const suppliedVisitor=typeof bodyVisitorId==="string"&&/^ios_[a-zA-Z0-9_-]{8,120}$/.test(bodyVisitorId)?bodyVisitorId:"";
+  let visitorId=suppliedVisitor||getCookie(req);if(!visitorId){visitorId=visitor();setCookie(res,visitorId)}
 
   const userLat=Number(latitude),userLng=Number(longitude);
   const validUserLat=Number.isFinite(userLat)&&Math.abs(userLat)<=90?userLat:null;
