@@ -24,7 +24,10 @@ export default async function handler(req, res) {
   const authorization = req.headers?.authorization || "";
   if (!/^Bearer\s+\S+/i.test(authorization)) return res.status(401).json({ error: "Sign in to link your check-ins." });
 
-  const visitorId = getCookie(req, "vibe_visitor");
+  const bodyVisitor = typeof req.body?.visitorId === "string" && /^ios_[a-zA-Z0-9_-]{8,120}$/.test(req.body.visitorId)
+    ? req.body.visitorId
+    : "";
+  const visitorId = bodyVisitor || getCookie(req, "vibe_visitor");
   if (!visitorId) return res.status(200).json({ ok: true, linked: 0 });
 
   try {
