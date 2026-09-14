@@ -1026,6 +1026,28 @@ struct NearbyPlace: Identifiable, Decodable {
         case lastCheckin = "last_checkin"
         case distanceMiles = "distance_miles"
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        placeId = try container.decode(String.self, forKey: .placeId)
+        placeName = try container.decodeIfPresent(String.self, forKey: .placeName) ?? "Local place"
+        placeAddress = try container.decodeIfPresent(String.self, forKey: .placeAddress) ?? ""
+        latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+        total = try container.decodeIfPresent(Int.self, forKey: .total) ?? 0
+        dominant = try container.decodeIfPresent(String.self, forKey: .dominant)
+        dominantPercent = try container.decodeIfPresent(Int.self, forKey: .dominantPercent)
+        lastCheckin = try container.decodeIfPresent(String.self, forKey: .lastCheckin)
+
+        if let numeric = try? container.decodeIfPresent(Double.self, forKey: .distanceMiles) {
+            distanceMiles = numeric
+        } else if let text = try? container.decodeIfPresent(String.self, forKey: .distanceMiles),
+                  let text {
+            distanceMiles = Double(text)
+        } else {
+            distanceMiles = nil
+        }
+    }
 }
 
 struct NearbyResponse: Decodable {
