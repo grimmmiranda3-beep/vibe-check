@@ -767,17 +767,23 @@ struct ProfileView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Button {
+            Button(action: {
+                auth.authStatusMessage = "Opening Google sign-in…"
                 auth.startGoogleSignIn()
-            } label: {
+            }) {
                 HStack {
-                    Image(systemName: "g.circle.fill")
+                    Image(systemName: "globe")
                     Text("Continue with Google")
                     Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
                 }
                 .font(.headline)
-                .padding(.vertical, 13)
+                .padding(.vertical, 14)
                 .padding(.horizontal, 15)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
                 .background(.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
@@ -785,6 +791,12 @@ struct ProfileView: View {
                 )
             }
             .buttonStyle(.plain)
+
+            if let authStatusMessage = auth.authStatusMessage {
+                Text(authStatusMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             HStack {
                 Rectangle().fill(Color.black.opacity(0.08)).frame(height: 1)
@@ -1188,6 +1200,7 @@ final class AuthManager: NSObject, ObservableObject, ASWebAuthenticationPresenta
     @Published private(set) var refreshToken: String?
     @Published private(set) var email: String?
     @Published private(set) var displayName: String = "Vibe Checker"
+    @Published var authStatusMessage: String?
 
     private let supabaseURL = URL(string: "https://zfpxkijhgdtppdlgvsyo.supabase.co")!
     private let publishableKey = "sb_publishable_wzo6WpG6wsS52GVdKyftTA_4K2NYDa8"
@@ -1218,6 +1231,8 @@ final class AuthManager: NSObject, ObservableObject, ASWebAuthenticationPresenta
 
         guard let url = components.url else { return }
 
+        authStatusMessage = "Opening Google sign-in…"
+
         let session = ASWebAuthenticationSession(
             url: url,
             callbackURLScheme: "vibelycheck"
@@ -1227,21 +1242,29 @@ final class AuthManager: NSObject, ObservableObject, ASWebAuthenticationPresenta
 
             if let callbackURL {
                 Task { @MainActor in
+                    self.authStatusMessage = "Finishing sign-in…"
                     self.handleCallback(callbackURL)
                 }
                 return
             }
 
-            if let authError = error as? ASWebAuthenticationSessionError,
-               authError.code == .canceledLogin {
-                return
+            Task { @MainActor in
+                if let authError = error as? ASWebAuthenticationSessionError,
+                   authError.code == .canceledLogin {
+                    self.authStatusMessage = nil
+                } else if error != nil {
+                    self.authStatusMessage = "Google sign-in could not open."
+                }
             }
         }
 
         session.presentationContextProvider = self
         session.prefersEphemeralWebBrowserSession = false
         webAuthSession = session
-        session.start()
+        if !session.start() {
+            authStatusMessage = "Opening Google in Safari…"
+            UIApplication.shared.open(url)
+        }
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
