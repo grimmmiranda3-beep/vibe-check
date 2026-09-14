@@ -793,30 +793,6 @@ struct ProfileView: View {
                 .font(.subheadline)
                 .foregroundStyle(Color.black.opacity(0.58))
 
-            if let appleURL = auth.appleSignInURL {
-                Link(destination: appleURL) {
-                    HStack {
-                        Image(systemName: "apple.logo")
-                        Text("Continue with Apple")
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.75))
-                    }
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 15)
-                    .frame(maxWidth: .infinity)
-                    .background(ink, in: RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-            } else {
-                Text("Apple sign-in is temporarily unavailable.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             if let googleURL = auth.googleSignInURL {
                 Link(destination: googleURL) {
                     HStack {
