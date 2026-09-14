@@ -7,6 +7,8 @@ private let appBackground = Color(red: 0.973, green: 0.965, blue: 0.976)
 private let ink = Color(red: 0.09, green: 0.08, blue: 0.10)
 
 struct ContentView: View {
+    @StateObject private var auth = AuthManager()
+
     var body: some View {
         TabView {
             ExploreView()
@@ -15,10 +17,14 @@ struct ContentView: View {
             NearbyView()
                 .tabItem { Label("Nearby", systemImage: "location.fill") }
 
-            ProfilePlaceholderView()
+            ProfileView()
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
         .tint(brandPurple)
+        .environmentObject(auth)
+        .onOpenURL { url in
+            auth.handleCallback(url)
+        }
     }
 }
 
@@ -662,24 +668,227 @@ struct NearbyView: View {
     }
 }
 
-struct ProfilePlaceholderView: View {
+struct ProfileView: View {
+    @EnvironmentObject private var auth: AuthManager
+    @State private var email = ""
+    @State private var history: [CheckinHistoryItem] = []
+    @State private var isLoadingHistory = false
+    @State private var message: String?
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 52))
+            ZStack {
+                appBackground.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Your Vibe Check")
+                            .font(.system(size: 32, weight: .black, design: .rounded))
+
+                        if auth.isSignedIn {
+                            signedInCard
+                            historyCard
+                            Button("Sign out") {
+                                auth.signOut()
+                                history = []
+                            }
+                            .font(.headline)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 15))
+                        } else {
+                            signInCard
+                        }
+                    }
+                    .padding(18)
+                }
+            }
+            .task(id: auth.accessToken) {
+                if auth.isSignedIn {
+                    await loadHistory()
+                }
+            }
+        }
+    }
+
+    private var signedInCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(
+                            LinearGradient(
+                                colors: [brandPurple.opacity(0.15), brandPink.opacity(0.18)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 64, height: 64)
+                    Text("💜")
+                        .font(.title)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(auth.displayName)
+                        .font(.title3.weight(.bold))
+                    Text(auth.email ?? "Signed in")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(history.count)")
+                        .font(.title2.weight(.black))
+                    Text("Recent check-ins")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("🔒 Private history")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(brandPurple)
-                Text("Your Vibe Check")
-                    .font(.title2.weight(.bold))
-                Text("Account sign-in and private check-in history will plug into the same Supabase account you already use on the web.")
+            }
+        }
+        .padding(18)
+        .background(.white, in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private var signInCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Save your vibe history")
+                .font(.title3.weight(.bold))
+
+            Text("Sign in so your private check-in history follows you across devices.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Button {
+                auth.startGoogleSignIn()
+            } label: {
+                HStack {
+                    Image(systemName: "g.circle.fill")
+                    Text("Continue with Google")
+                    Spacer()
+                }
+                .font(.headline)
+                .padding(.vertical, 13)
+                .padding(.horizontal, 15)
+                .background(.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.black.opacity(0.12))
+                )
+            }
+            .buttonStyle(.plain)
+
+            HStack {
+                Rectangle().fill(Color.black.opacity(0.08)).frame(height: 1)
+                Text("or")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Rectangle().fill(Color.black.opacity(0.08)).frame(height: 1)
+            }
+
+            TextField("Email address", text: $email)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(13)
+                .background(appBackground, in: RoundedRectangle(cornerRadius: 13))
+
+            Button {
+                Task {
+                    do {
+                        try await auth.sendMagicLink(to: email)
+                        message = "Check your email and tap the Vibe Check sign-in link."
+                    } catch {
+                        message = "We couldn’t send the sign-in link. Please try again."
+                    }
+                }
+            } label: {
+                Text("Email me a sign-in link")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(
+                        LinearGradient(
+                            colors: [brandPurple, brandPink],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 14)
+                    )
+                    .foregroundStyle(.white)
+            }
+            .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if let message {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(18)
+        .background(.white, in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    private var historyCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Recent check-ins")
+                    .font(.headline)
+                Spacer()
+                if isLoadingHistory {
+                    ProgressView()
+                }
+            }
+
+            if !isLoadingHistory && history.isEmpty {
+                Text("No saved check-ins yet.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(appBackground)
+
+            ForEach(history) { item in
+                HStack(spacing: 12) {
+                    Text(item.vibe)
+                        .font(.title2)
+                        .frame(width: 44, height: 44)
+                        .background(appBackground, in: RoundedRectangle(cornerRadius: 13))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.placeName ?? "Local place")
+                            .font(.subheadline.weight(.bold))
+                        if let address = item.placeAddress, !address.isEmpty {
+                            Text(address)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 5)
+            }
         }
+        .padding(18)
+        .background(.white, in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    @MainActor
+    private func loadHistory() async {
+        guard let token = auth.accessToken else { return }
+        isLoadingHistory = true
+        do {
+            try await auth.linkNativeVisitor()
+            history = try await VibeAPI.history(accessToken: token)
+        } catch {
+            history = []
+        }
+        isLoadingHistory = false
     }
 }
 
@@ -815,6 +1024,29 @@ struct CommunitySummary: Decodable {
     let windowMinutes: Int?
 }
 
+struct CheckinHistoryItem: Identifiable, Decodable {
+    let id: String
+    let placeId: String?
+    let placeName: String?
+    let placeAddress: String?
+    let vibe: String
+    let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case placeId = "place_id"
+        case placeName = "place_name"
+        case placeAddress = "place_address"
+        case vibe
+        case createdAt = "created_at"
+    }
+}
+
+struct CheckinHistoryResponse: Decodable {
+    let ok: Bool
+    let checkins: [CheckinHistoryItem]
+}
+
 // MARK: - API
 
 enum VibeAPI {
@@ -912,6 +1144,28 @@ enum VibeAPI {
         }
         return try JSONDecoder().decode(CommunityResponse.self, from: data)
     }
+
+    static func history(accessToken: String) async throws -> [CheckinHistoryItem] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/checkin"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "history", value: "1"),
+            URLQueryItem(name: "limit", value: "20")
+        ]
+        guard let url = components.url else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(CheckinHistoryResponse.self, from: data).checkins
+    }
 }
 
 enum NativeVisitorID {
@@ -923,6 +1177,148 @@ enum NativeVisitorID {
         let created = "ios_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
         UserDefaults.standard.set(created, forKey: key)
         return created
+    }
+}
+
+@MainActor
+final class AuthManager: ObservableObject {
+    @Published private(set) var accessToken: String?
+    @Published private(set) var refreshToken: String?
+    @Published private(set) var email: String?
+    @Published private(set) var displayName: String = "Vibe Checker"
+
+    private let supabaseURL = URL(string: "https://zfpxkijhgdtppdlgvsyo.supabase.co")!
+    private let publishableKey = "sb_publishable_wzo6WpG6wsS52GVdKyftTA_4K2NYDa8"
+    private let tokenKey = "vibely.auth.access"
+    private let refreshKey = "vibely.auth.refresh"
+
+    init() {
+        accessToken = UserDefaults.standard.string(forKey: tokenKey)
+        refreshToken = UserDefaults.standard.string(forKey: refreshKey)
+        if accessToken != nil {
+            Task { await loadUser() }
+        }
+    }
+
+    var isSignedIn: Bool { accessToken != nil }
+
+    func startGoogleSignIn() {
+        var components = URLComponents(
+            url: supabaseURL.appendingPathComponent("auth/v1/authorize"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "provider", value: "google"),
+            URLQueryItem(name: "redirect_to", value: "https://vibelycheck.com/auth-mobile.html"),
+            URLQueryItem(name: "prompt", value: "select_account")
+        ]
+        if let url = components.url {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    func sendMagicLink(to rawEmail: String) async throws {
+        let cleaned = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.contains("@") else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: supabaseURL.appendingPathComponent("auth/v1/otp"))
+        request.httpMethod = "POST"
+        request.setValue(publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "email": cleaned,
+            "create_user": true,
+            "options": [
+                "email_redirect_to": "https://vibelycheck.com/auth-mobile.html"
+            ]
+        ])
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    func handleCallback(_ url: URL) {
+        guard url.scheme == "vibelycheck" else { return }
+        let source = (url.query ?? "") + "&" + (url.fragment ?? "")
+        let values = parseParameters(source)
+
+        guard let access = values["access_token"], !access.isEmpty else { return }
+        accessToken = access
+        refreshToken = values["refresh_token"]
+        UserDefaults.standard.set(access, forKey: tokenKey)
+        if let refresh = refreshToken {
+            UserDefaults.standard.set(refresh, forKey: refreshKey)
+        }
+
+        Task {
+            await loadUser()
+            try? await linkNativeVisitor()
+        }
+    }
+
+    func signOut() {
+        accessToken = nil
+        refreshToken = nil
+        email = nil
+        displayName = "Vibe Checker"
+        UserDefaults.standard.removeObject(forKey: tokenKey)
+        UserDefaults.standard.removeObject(forKey: refreshKey)
+    }
+
+    func linkNativeVisitor() async throws {
+        guard let token = accessToken else { return }
+        var request = URLRequest(url: URL(string: "https://vibelycheck.com/api/link-visitor")!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "visitorId": NativeVisitorID.value
+        ])
+        _ = try await URLSession.shared.data(for: request)
+    }
+
+    private func loadUser() async {
+        guard let token = accessToken else { return }
+        var request = URLRequest(url: supabaseURL.appendingPathComponent("auth/v1/user"))
+        request.setValue(publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                signOut()
+                return
+            }
+            if let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                email = object["email"] as? String
+                if let metadata = object["user_metadata"] as? [String: Any] {
+                    displayName =
+                        (metadata["full_name"] as? String) ??
+                        (metadata["name"] as? String) ??
+                        email?.split(separator: "@").first.map(String.init) ??
+                        "Vibe Checker"
+                } else {
+                    displayName = email?.split(separator: "@").first.map(String.init) ?? "Vibe Checker"
+                }
+            }
+        } catch {
+            // Keep the local session and try again next time.
+        }
+    }
+
+    private func parseParameters(_ source: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for pair in source.split(separator: "&") {
+            let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].removingPercentEncoding ?? parts[0]
+            let value = parts[1].replacingOccurrences(of: "+", with: " ").removingPercentEncoding ?? parts[1]
+            result[key] = value
+        }
+        return result
     }
 }
 
