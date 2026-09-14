@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Vibely Check</string>
+	<string>Vibe Check</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.vibelycheck.app</string>
 	<key>CFBundleName</key>
-	<string>VibelyCheck</string>
+	<string>VibeCheck</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
