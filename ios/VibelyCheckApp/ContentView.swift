@@ -1,5 +1,7 @@
 import SwiftUI
 import CoreLocation
+import AuthenticationServices
+import UIKit
 
 private let brandPurple = Color(red: 0.49, green: 0.23, blue: 0.89)
 private let brandPink = Color(red: 0.93, green: 0.28, blue: 0.60)
@@ -1181,7 +1183,7 @@ enum NativeVisitorID {
 }
 
 @MainActor
-final class AuthManager: ObservableObject {
+final class AuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
     @Published private(set) var accessToken: String?
     @Published private(set) var refreshToken: String?
     @Published private(set) var email: String?
@@ -1191,8 +1193,9 @@ final class AuthManager: ObservableObject {
     private let publishableKey = "sb_publishable_wzo6WpG6wsS52GVdKyftTA_4K2NYDa8"
     private let tokenKey = "vibely.auth.access"
     private let refreshKey = "vibely.auth.refresh"
+    private var webAuthSession: ASWebAuthenticationSession?
 
-    init() {
+    override init() {
         accessToken = UserDefaults.standard.string(forKey: tokenKey)
         refreshToken = UserDefaults.standard.string(forKey: refreshKey)
         if accessToken != nil {
@@ -1212,9 +1215,41 @@ final class AuthManager: ObservableObject {
             URLQueryItem(name: "redirect_to", value: "https://vibelycheck.com/auth-mobile.html"),
             URLQueryItem(name: "prompt", value: "select_account")
         ]
-        if let url = components.url {
-            UIApplication.shared.open(url)
+
+        guard let url = components.url else { return }
+
+        let session = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: "vibelycheck"
+        ) { [weak self] callbackURL, error in
+            guard let self else { return }
+            self.webAuthSession = nil
+
+            if let callbackURL {
+                Task { @MainActor in
+                    self.handleCallback(callbackURL)
+                }
+                return
+            }
+
+            if let authError = error as? ASWebAuthenticationSessionError,
+               authError.code == .canceledLogin {
+                return
+            }
         }
+
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        webAuthSession = session
+        session.start()
+    }
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        if let window = scenes.flatMap({ $0.windows }).first(where: { $0.isKeyWindow }) {
+            return window
+        }
+        return ASPresentationAnchor()
     }
 
     func sendMagicLink(to rawEmail: String) async throws {
