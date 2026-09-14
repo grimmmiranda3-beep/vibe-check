@@ -670,15 +670,23 @@ struct NearbyView: View {
         #endif
 
         do {
-            places = try await VibeAPI.nearby(
+            let loadedPlaces = try await VibeAPI.nearby(
                 latitude: latitude,
                 longitude: longitude
             )
-            if places.isEmpty {
+            places = loadedPlaces
+            if loadedPlaces.isEmpty {
                 message = "No live vibes nearby yet. Check in somewhere nearby and refresh to put it on the map."
+            } else {
+                message = nil
             }
         } catch {
+            places = []
+            #if DEBUG
+            message = "Nearby error: \(error.localizedDescription)"
+            #else
             message = "Nearby vibes are unavailable right now."
+            #endif
         }
         isLoading = false
     }
