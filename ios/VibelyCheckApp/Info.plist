@@ -8,6 +8,17 @@
 	<string>com.vibelycheck.app</string>
 	<key>CFBundleName</key>
 	<string>VibelyCheck</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.vibelycheck.app.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vibelycheck</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
