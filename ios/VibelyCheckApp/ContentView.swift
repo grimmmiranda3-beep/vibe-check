@@ -1205,10 +1205,15 @@ final class AuthManager: NSObject, ObservableObject, ASWebAuthenticationPresenta
     private var webAuthSession: ASWebAuthenticationSession?
 
     override init() {
-        accessToken = UserDefaults.standard.string(forKey: tokenKey)
-        refreshToken = UserDefaults.standard.string(forKey: refreshKey)
-        if accessToken != nil {
-            Task { await loadUser() }
+        let storedAccessToken = UserDefaults.standard.string(forKey: "vibely.auth.access")
+        let storedRefreshToken = UserDefaults.standard.string(forKey: "vibely.auth.refresh")
+        super.init()
+        accessToken = storedAccessToken
+        refreshToken = storedRefreshToken
+        if storedAccessToken != nil {
+            Task { [weak self] in
+                await self?.loadUser()
+            }
         }
     }
 
