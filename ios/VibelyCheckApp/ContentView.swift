@@ -767,33 +767,29 @@ struct ProfileView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Button(action: {
-                auth.authStatusMessage = "Opening Google sign-in…"
-                auth.startGoogleSignIn()
-            }) {
-                HStack {
-                    Image(systemName: "globe")
-                    Text("Continue with Google")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
+            if let googleURL = auth.googleSignInURL {
+                Link(destination: googleURL) {
+                    HStack {
+                        Image(systemName: "globe")
+                        Text("Continue with Google")
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.headline)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 15)
+                    .frame(maxWidth: .infinity)
+                    .background(.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.black.opacity(0.12))
+                    )
                 }
-                .font(.headline)
-                .padding(.vertical, 14)
-                .padding(.horizontal, 15)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .background(.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.black.opacity(0.12))
-                )
-            }
-            .buttonStyle(.plain)
-
-            if let authStatusMessage = auth.authStatusMessage {
-                Text(authStatusMessage)
+                .buttonStyle(.plain)
+            } else {
+                Text("Google sign-in is temporarily unavailable.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1217,6 +1213,19 @@ final class AuthManager: NSObject, ObservableObject, ASWebAuthenticationPresenta
     }
 
     var isSignedIn: Bool { accessToken != nil }
+
+    var googleSignInURL: URL? {
+        var components = URLComponents(
+            url: supabaseURL.appendingPathComponent("auth/v1/authorize"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "provider", value: "google"),
+            URLQueryItem(name: "redirect_to", value: "https://vibelycheck.com/auth-mobile.html"),
+            URLQueryItem(name: "prompt", value: "select_account")
+        ]
+        return components?.url
+    }
 
     func startGoogleSignIn() {
         var components = URLComponents(
