@@ -656,13 +656,26 @@ struct NearbyView: View {
     private func loadNearby(_ location: CLLocation) async {
         isLoading = true
         message = nil
+
+        var latitude = location.coordinate.latitude
+        var longitude = location.coordinate.longitude
+
+        // The iOS Simulator often reports Apple's default test location,
+        // which can be far from the Vacaville launch area. Keep production
+        // behavior fully location-based, but make simulator QA useful by
+        // anchoring Nearby around Vacaville.
+        #if targetEnvironment(simulator)
+        latitude = 38.3566
+        longitude = -121.9877
+        #endif
+
         do {
             places = try await VibeAPI.nearby(
-                latitude: location.coordinate.latitude,
-                longitude: location.coordinate.longitude
+                latitude: latitude,
+                longitude: longitude
             )
             if places.isEmpty {
-                message = "No live vibes nearby yet. Your next check-in can put a place on the map."
+                message = "No live vibes nearby yet. Check in somewhere nearby and refresh to put it on the map."
             }
         } catch {
             message = "Nearby vibes are unavailable right now."
