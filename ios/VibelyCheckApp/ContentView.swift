@@ -23,6 +23,7 @@ struct ContentView: View {
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
         .tint(brandPurple)
+        .preferredColorScheme(.light)
         .environmentObject(auth)
         .onOpenURL { url in
             auth.handleCallback(url)
@@ -263,7 +264,7 @@ struct PlaceCard: View {
 
                         Text(place.address)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.black.opacity(0.45))
                             .lineLimit(2)
                     }
 
@@ -686,6 +687,7 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         Text("Your Vibe Check")
                             .font(.system(size: 32, weight: .black, design: .rounded))
+                            .foregroundStyle(ink)
 
                         if auth.isSignedIn {
                             signedInCard
@@ -734,9 +736,10 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(auth.displayName)
                         .font(.title3.weight(.bold))
+                        .foregroundStyle(ink)
                     Text(auth.email ?? "Signed in")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.black.opacity(0.58))
                 }
             }
 
@@ -744,9 +747,10 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(history.count)")
                         .font(.title2.weight(.black))
+                        .foregroundStyle(ink)
                     Text("Recent check-ins")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.black.opacity(0.58))
                 }
                 Spacer()
                 Text("🔒 Private history")
@@ -762,10 +766,11 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Save your vibe history")
                 .font(.title3.weight(.bold))
+                .foregroundStyle(ink)
 
             Text("Sign in so your private check-in history follows you across devices.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.black.opacity(0.58))
 
             if let googleURL = auth.googleSignInURL {
                 Link(destination: googleURL) {
@@ -778,6 +783,7 @@ struct ProfileView: View {
                             .foregroundStyle(.secondary)
                     }
                     .font(.headline)
+                    .foregroundStyle(ink)
                     .padding(.vertical, 14)
                     .padding(.horizontal, 15)
                     .frame(maxWidth: .infinity)
@@ -798,11 +804,13 @@ struct ProfileView: View {
                 Rectangle().fill(Color.black.opacity(0.08)).frame(height: 1)
                 Text("or")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.black.opacity(0.45))
                 Rectangle().fill(Color.black.opacity(0.08)).frame(height: 1)
             }
 
             TextField("Email address", text: $email)
+                .foregroundStyle(ink)
+                .tint(brandPurple)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -838,7 +846,7 @@ struct ProfileView: View {
             if let message {
                 Text(message)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.black.opacity(0.58))
             }
         }
         .padding(18)
@@ -850,6 +858,7 @@ struct ProfileView: View {
             HStack {
                 Text("Recent check-ins")
                     .font(.headline)
+                    .foregroundStyle(ink)
                 Spacer()
                 if isLoadingHistory {
                     ProgressView()
@@ -859,7 +868,7 @@ struct ProfileView: View {
             if !isLoadingHistory && history.isEmpty {
                 Text("No saved check-ins yet.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.black.opacity(0.58))
             }
 
             ForEach(history) { item in
@@ -872,6 +881,7 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.placeName ?? "Local place")
                             .font(.subheadline.weight(.bold))
+                            .foregroundStyle(ink)
                         if let address = item.placeAddress, !address.isEmpty {
                             Text(address)
                                 .font(.caption)
