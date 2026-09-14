@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 private let brandPurple = Color(red: 0.49, green: 0.23, blue: 0.89)
 private let brandPink = Color(red: 0.93, green: 0.28, blue: 0.60)
@@ -11,7 +12,7 @@ struct ContentView: View {
             ExploreView()
                 .tabItem { Label("Explore", systemImage: "sparkles") }
 
-            NearbyPlaceholderView()
+            NearbyView()
                 .tabItem { Label("Nearby", systemImage: "location.fill") }
 
             ProfilePlaceholderView()
@@ -293,6 +294,10 @@ struct PlaceDetailView: View {
 
     @State private var community: CommunityResponse?
     @State private var isLoadingCommunity = true
+    @State private var selectedVibe: Vibe = .energetic
+    @State private var isSavingVibe = false
+    @State private var checkinMessage: String?
+    @StateObject private var locationManager = LocationManager()
 
     var body: some View {
         ScrollView {
@@ -323,6 +328,7 @@ struct PlaceDetailView: View {
                 }
 
                 communityCard
+                checkinCard
 
                 if let url = place.mapsURL {
                     Link(destination: url) {
@@ -342,12 +348,8 @@ struct PlaceDetailView: View {
         .navigationTitle("Vibe")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            do {
-                community = try await VibeAPI.community(place.id)
-            } catch {
-                community = nil
-            }
-            isLoadingCommunity = false
+            locationManager.requestLocation()
+            await refreshCommunity()
         }
     }
 
@@ -418,28 +420,245 @@ struct PlaceDetailView: View {
         .padding(17)
         .background(.white, in: RoundedRectangle(cornerRadius: 20))
     }
+
+    private var checkinCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("How’s the vibe right now?")
+                .font(.headline)
+
+            HStack(spacing: 8) {
+                ForEach(Vibe.allCases, id: \.rawValue) { vibe in
+                    Button {
+                        selectedVibe = vibe
+                    } label: {
+                        Text(vibe.rawValue)
+                            .font(.system(size: 25))
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(
+                                selectedVibe == vibe ? brandPurple.opacity(0.12) : appBackground,
+                                in: RoundedRectangle(cornerRadius: 14)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(selectedVibe == vibe ? brandPurple : Color.clear, lineWidth: 2)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button {
+                Task { await submitVibe() }
+            } label: {
+                HStack {
+                    Spacer()
+                    if isSavingVibe {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Add my vibe")
+                            .font(.headline)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(
+                        colors: [brandPurple, brandPink],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 15)
+                )
+                .foregroundStyle(.white)
+            }
+            .disabled(isSavingVibe)
+
+            if let checkinMessage {
+                Text(checkinMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if locationManager.location == nil {
+                Text("Location is required to keep Nearby accurate.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(17)
+        .background(.white, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    @MainActor
+    private func refreshCommunity() async {
+        isLoadingCommunity = true
+        do {
+            community = try await VibeAPI.community(place.id)
+        } catch {
+            community = nil
+        }
+        isLoadingCommunity = false
+    }
+
+    @MainActor
+    private func submitVibe() async {
+        guard let location = locationManager.location else {
+            locationManager.requestLocation()
+            checkinMessage = "Allow location, then tap Add my vibe again."
+            return
+        }
+
+        isSavingVibe = true
+        checkinMessage = nil
+
+        do {
+            let response = try await VibeAPI.submitCheckin(
+                place: place,
+                vibe: selectedVibe,
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude
+            )
+            community = response
+            checkinMessage = "Your \(selectedVibe.rawValue) vibe is live."
+        } catch {
+            checkinMessage = "We couldn’t add your vibe. Please try again."
+        }
+
+        isSavingVibe = false
+    }
 }
 
 // MARK: - Future Tabs
 
-struct NearbyPlaceholderView: View {
+struct NearbyView: View {
+    @StateObject private var locationManager = LocationManager()
+    @State private var places: [NearbyPlace] = []
+    @State private var isLoading = false
+    @State private var message: String?
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
-                Image(systemName: "location.circle.fill")
-                    .font(.system(size: 52))
-                    .foregroundStyle(brandPurple)
-                Text("Nearby vibes")
-                    .font(.title2.weight(.bold))
-                Text("Native location-based discovery is the next screen we’re building.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+            ZStack {
+                appBackground.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Nearby vibes")
+                            .font(.system(size: 32, weight: .black, design: .rounded))
+
+                        Text("See places with live community activity around you.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        if let location = locationManager.location {
+                            Button {
+                                Task { await loadNearby(location) }
+                            } label: {
+                                Label("Refresh nearby", systemImage: "location.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(ink)
+                                    .foregroundStyle(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                            }
+                        } else {
+                            Button {
+                                locationManager.requestLocation()
+                            } label: {
+                                Label("Use my location", systemImage: "location.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(brandPurple)
+                                    .foregroundStyle(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                            }
+                        }
+
+                        if isLoading {
+                            HStack {
+                                Spacer()
+                                ProgressView("Finding live vibes…")
+                                Spacer()
+                            }
+                            .padding(.vertical, 30)
+                        } else if let message {
+                            Text(message)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(18)
+                                .frame(maxWidth: .infinity)
+                                .background(.white, in: RoundedRectangle(cornerRadius: 18))
+                        } else {
+                            ForEach(places) { place in
+                                VStack(alignment: .leading, spacing: 9) {
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(place.placeName)
+                                                .font(.headline)
+                                            Text(place.placeAddress)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Text(place.dominant ?? "✨")
+                                            .font(.title2)
+                                    }
+
+                                    HStack {
+                                        Label("\(place.total) live", systemImage: "person.2.fill")
+                                        Spacer()
+                                        Text("\(place.distanceMilesText) mi away")
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+
+                                    if let dominantPercent = place.dominantPercent,
+                                       let dominant = place.dominant {
+                                        Text("\(dominant) is leading with \(dominantPercent)% of recent check-ins")
+                                            .font(.subheadline)
+                                    }
+                                }
+                                .padding(16)
+                                .background(.white, in: RoundedRectangle(cornerRadius: 19))
+                            }
+                        }
+                    }
+                    .padding(18)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(appBackground)
+            .task(id: locationManager.location?.coordinate.latitude) {
+                if let location = locationManager.location {
+                    await loadNearby(location)
+                } else {
+                    locationManager.requestLocation()
+                }
+            }
+            .onChange(of: locationManager.location) { _, newLocation in
+                if let newLocation {
+                    Task { await loadNearby(newLocation) }
+                }
+            }
         }
+    }
+
+    @MainActor
+    private func loadNearby(_ location: CLLocation) async {
+        isLoading = true
+        message = nil
+        do {
+            places = try await VibeAPI.nearby(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude
+            )
+            if places.isEmpty {
+                message = "No live vibes nearby yet. Your next check-in can put a place on the map."
+            }
+        } catch {
+            message = "Nearby vibes are unavailable right now."
+        }
+        isLoading = false
     }
 }
 
@@ -538,6 +757,40 @@ struct Place: Identifiable, Codable, Hashable {
     }
 }
 
+struct NearbyPlace: Identifiable, Decodable {
+    let placeId: String
+    let placeName: String
+    let placeAddress: String
+    let latitude: Double?
+    let longitude: Double?
+    let total: Int
+    let dominant: String?
+    let dominantPercent: Int?
+    let lastCheckin: String?
+    let distanceMiles: Double?
+
+    var id: String { placeId }
+    var distanceMilesText: String {
+        guard let distanceMiles else { return "—" }
+        return String(format: "%.1f", distanceMiles)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case placeId = "place_id"
+        case placeName = "place_name"
+        case placeAddress = "place_address"
+        case latitude, longitude, total, dominant
+        case dominantPercent = "dominant_percent"
+        case lastCheckin = "last_checkin"
+        case distanceMiles = "distance_miles"
+    }
+}
+
+struct NearbyResponse: Decodable {
+    let ok: Bool
+    let places: [NearbyPlace]
+}
+
 struct SearchResponse: Decodable {
     let places: [Place]
     let count: Int
@@ -609,5 +862,107 @@ enum VibeAPI {
         }
 
         return try JSONDecoder().decode(CommunityResponse.self, from: data)
+    }
+
+    static func nearby(latitude: Double, longitude: Double) async throws -> [NearbyPlace] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/nearby"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "lat", value: String(latitude)),
+            URLQueryItem(name: "lng", value: String(longitude)),
+            URLQueryItem(name: "radius", value: "10")
+        ]
+
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(NearbyResponse.self, from: data).places
+    }
+
+    static func submitCheckin(
+        place: Place,
+        vibe: Vibe,
+        latitude: Double,
+        longitude: Double
+    ) async throws -> CommunityResponse {
+        let visitorID = NativeVisitorID.value
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/checkin"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        let body: [String: Any] = [
+            "placeId": place.id,
+            "vibe": vibe.rawValue,
+            "placeName": place.name,
+            "placeAddress": place.address,
+            "latitude": latitude,
+            "longitude": longitude,
+            "visitorId": visitorID
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(CommunityResponse.self, from: data)
+    }
+}
+
+enum NativeVisitorID {
+    static var value: String {
+        let key = "vibely.native.visitor.id"
+        if let existing = UserDefaults.standard.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+        let created = "ios_" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        UserDefaults.standard.set(created, forKey: key)
+        return created
+    }
+}
+
+final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var location: CLLocation?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        authorizationStatus = manager.authorizationStatus
+    }
+
+    func requestLocation() {
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            manager.requestLocation()
+        default:
+            break
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+            manager.authorizationStatus == .authorizedAlways {
+            manager.requestLocation()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        location = locations.last
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // The UI remains usable without nearby/check-in features until location is available.
     }
 }
