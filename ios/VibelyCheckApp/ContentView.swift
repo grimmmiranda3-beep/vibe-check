@@ -1047,10 +1047,9 @@ struct NearbyPlace: Identifiable, Decodable {
         dominantPercent = try container.decodeIfPresent(Int.self, forKey: .dominantPercent)
         lastCheckin = try container.decodeIfPresent(String.self, forKey: .lastCheckin)
 
-        if let numeric = try? container.decodeIfPresent(Double.self, forKey: .distanceMiles) {
+        if let numeric = try? container.decode(Double.self, forKey: .distanceMiles) {
             distanceMiles = numeric
-        } else if let text = try? container.decodeIfPresent(String.self, forKey: .distanceMiles),
-                  let text {
+        } else if let text = try? container.decode(String.self, forKey: .distanceMiles) {
             distanceMiles = Double(text)
         } else {
             distanceMiles = nil
