@@ -75,17 +75,18 @@ function matchesRequestedType(place, type) {
   };
   return Boolean(nameRules[type]?.test(name));
 }
-function cacheKey(textQuery, includedType) {
-  return `vibe-check:search:${includedType || "any"}:${encodeURIComponent(textQuery).slice(0, 240)}`;
+function cacheKey(textQuery, includedType, locationBias = null) {
+  const locationPart = locationBias ? `:${Number(locationBias.latitude).toFixed(3)},${Number(locationBias.longitude).toFixed(3)}` : "";
+  return `vibe-check:search:${includedType || "any"}:${encodeURIComponent(textQuery).slice(0, 240)}${locationPart}`;
 }
-async function getCachedSearch(textQuery, includedType) {
+async function getCachedSearch(textQuery, includedType, locationBias = null) {
   try {
-    const result = await redis(["GET", cacheKey(textQuery, includedType)]);
+    const result = await redis(["GET", cacheKey(textQuery, includedType, locationBias)]);
     return result?.result ? JSON.parse(result.result) : null;
   } catch (error) { console.error("Search cache read failed:", error); return null; }
 }
-async function setCachedSearch(textQuery, includedType, places) {
-  try { await redis(["SETEX", cacheKey(textQuery, includedType), 600, JSON.stringify(places)]); }
+async function setCachedSearch(textQuery, includedType, places, locationBias = null) {
+  try { await redis(["SETEX", cacheKey(textQuery, includedType, locationBias), 600, JSON.stringify(places)]); }
   catch (error) { console.error("Search cache write failed:", error); }
 }
 export default async function handler(req, res) {
@@ -96,7 +97,9 @@ export default async function handler(req, res) {
   try { if (!(await rateLimit(req))) return res.status(429).json({ error: "Too many searches. Please wait a minute and try again." }); }
   catch (error) { console.error("Search rate-limit error:", error); }
   const rawQuery = String(req.query.query || req.query.q || "").trim();
-  if (!rawQuery) return res.status(400).json({ error: "Please provide a city, ZIP code, or place search." });
+  const lat = Number(req.query.lat), lng = Number(req.query.lng);
+  const hasLocation = Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+  if (!rawQuery && !hasLocation) return res.status(400).json({ error: "Please provide a city, ZIP code, place search, or location." });
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Place search is temporarily unavailable. Please try again later." });
   const normalized = rawQuery.replace(/\s*,\s*/g, ", ");
@@ -104,18 +107,18 @@ export default async function handler(req, res) {
   const locationNormalized = normalized.replace(/\b([A-Za-z][A-Za-z .'-]+),\s*([A-Za-z]{2})\s*$/i, "in $1, $2");
   const queries = [...new Set([rawQuery, normalized, locationNormalized, normalized.replace(/\s*,\s*/g, " in ")])];
   const cityDiscovery = !searchType && isCityOrZipQuery(rawQuery);
-  async function searchGoogle(textQuery, pageSize = 10, includedType = null) {
-    const cached = await getCachedSearch(textQuery, includedType);
+  async function searchGoogle(textQuery, pageSize = 10, includedType = null, locationBias = null) {
+    const cached = await getCachedSearch(textQuery, includedType, locationBias);
     if (cached) return cached;
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.primaryType,places.location,places.photos,places.currentOpeningHours" },
-      body: JSON.stringify({ textQuery, pageSize, languageCode: "en", regionCode: "US", ...(includedType ? { includedType, strictTypeFiltering: true } : {}) })
+      body: JSON.stringify({ textQuery, pageSize, languageCode: "en", regionCode: "US", ...(includedType ? { includedType, strictTypeFiltering: true } : {}), ...(locationBias ? { locationBias: { circle: { center: { latitude: locationBias.latitude, longitude: locationBias.longitude }, radius: 16000 } } } : {}) })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || "Google Places search failed.");
     const result = data.places || [];
-    await setCachedSearch(textQuery, includedType, result);
+    await setCachedSearch(textQuery, includedType, result, locationBias);
     return result;
   }
   async function resolvePhotoUri(photoName) {
@@ -130,7 +133,13 @@ export default async function handler(req, res) {
   try {
     let googlePlaces = [];
     let lastError = null;
-    if (cityDiscovery) {
+    if (!rawQuery && hasLocation) {
+      const locationBias = { latitude: lat, longitude: lng };
+      const categoryQueries = ["restaurants", "coffee shops", "bars and nightlife"];
+      const results = await Promise.all(categoryQueries.map(q => searchGoogle(q, 6, null, locationBias).catch(error => { lastError = error; return []; })));
+      const seen = new Set();
+      googlePlaces = results.flat().filter(place => { if (!place?.id || seen.has(place.id)) return false; seen.add(place.id); return true; }).slice(0, 18);
+    } else if (cityDiscovery) {
       const categoryQueries = [`popular restaurants in ${normalized}`, `coffee shops in ${normalized}`, `bars and nightlife in ${normalized}`];
       const results = await Promise.all(categoryQueries.map(q => searchGoogle(q, 6).catch(error => { lastError = error; return []; })));
       const seen = new Set();
